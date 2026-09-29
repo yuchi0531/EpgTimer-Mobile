@@ -24,6 +24,19 @@ internal const val GUIDE_TEXT_PAD_DP = 4
 internal const val GUIDE_AXIS_WIDTH_DP = 56
 internal const val GUIDE_CELL_MIN_HEIGHT_PX = 2f
 
+fun visibleColumns(
+    scrollX: Float,
+    viewportWidth: Float,
+    originPx: Float,
+    cellWidthPx: Float,
+    count: Int,
+): IntRange {
+    if (count <= 0 || cellWidthPx <= 0f) return 0..-1
+    val first = ((scrollX - originPx) / cellWidthPx).toInt().coerceIn(0, count - 1)
+    val last = ((scrollX + viewportWidth - originPx) / cellWidthPx).toInt().coerceIn(0, count - 1)
+    return first..last
+}
+
 class TimeSegment(val start: Float, val end: Float)
 
 class TimelineMapper(
@@ -87,89 +100,6 @@ fun buildTimeline(
 
 fun minutesBetween(from: LocalDateTime, to: LocalDateTime): Float =
     Duration.between(from, to).toMillis() / 60000f
-
-class ViewRect(val left: Float, val top: Float, val right: Float, val bottom: Float) {
-    val width: Float get() = right - left
-    val height: Float get() = bottom - top
-}
-
-class ViewSurface(
-    val rect: ViewRect,
-    val originX: Float,
-    val originY: Float,
-    val width: Float,
-    val height: Float,
-)
-
-fun visibleColumns(
-    scrollX: Float,
-    viewportWidth: Float,
-    originPx: Float,
-    cellWidthPx: Float,
-    count: Int,
-): IntRange {
-    if (count <= 0 || cellWidthPx <= 0f) return 0..-1
-    val first = ((scrollX - originPx) / cellWidthPx).toInt().coerceIn(0, count - 1)
-    val last = ((scrollX + viewportWidth - originPx) / cellWidthPx).toInt().coerceIn(0, count - 1)
-    return first..last
-}
-
-fun visibleRows(
-    scrollY: Float,
-    viewportHeight: Float,
-    originPx: Float,
-    rowHeightPx: Float,
-    count: Int,
-): IntRange {
-    if (count <= 0 || rowHeightPx <= 0f) return 0..-1
-    val first = ((scrollY - originPx) / rowHeightPx).toInt().coerceIn(0, count - 1)
-    val last = ((scrollY + viewportHeight - originPx) / rowHeightPx).toInt().coerceIn(0, count - 1)
-    return first..last
-}
-
-fun viewOrigin(scrollX: Float, scrollY: Float, headerPx: Float): Pair<Float, Float> =
-    headerPx - scrollX to headerPx - scrollY
-
-fun viewRect(
-    scrollX: Float,
-    scrollY: Float,
-    viewportWidth: Float,
-    viewportHeight: Float,
-    contentWidth: Float,
-    contentHeight: Float,
-): ViewRect = ViewRect(
-    left = scrollX.coerceIn(0f, contentWidth),
-    top = scrollY.coerceIn(0f, contentHeight),
-    right = (scrollX + viewportWidth).coerceIn(0f, contentWidth),
-    bottom = (scrollY + viewportHeight).coerceIn(0f, contentHeight),
-)
-
-fun guideSurface(
-    scrollX: Float,
-    scrollY: Float,
-    viewportWidth: Float,
-    viewportHeight: Float,
-    headerPx: Float,
-    contentWidth: Float,
-    contentHeight: Float,
-): ViewSurface {
-    val rect = viewRect(
-        scrollX = scrollX,
-        scrollY = scrollY,
-        viewportWidth = viewportWidth,
-        viewportHeight = viewportHeight,
-        contentWidth = contentWidth,
-        contentHeight = contentHeight,
-    )
-    val origin = viewOrigin(scrollX, scrollY, headerPx)
-    return ViewSurface(
-        rect = rect,
-        originX = origin.first,
-        originY = origin.second,
-        width = viewportWidth.coerceAtLeast(1f),
-        height = viewportHeight.coerceAtLeast(1f),
-    )
-}
 
 fun gridColumnAt(xInView: Float, originPx: Float, cellWidthPx: Float, count: Int): Int {
     if (xInView < originPx) return -1
@@ -248,6 +178,20 @@ fun guideContentSizes(
     return width to height
 }
 
+fun guideContentSizes(
+    axisPx: Float,
+    headerPx: Float,
+    columns: Int,
+    timelineHeightPx: Float,
+    cellWidthPx: Float,
+): Pair<Float, Float> {
+    val width = (axisPx + columns.coerceAtLeast(0) * cellWidthPx.coerceAtLeast(0f))
+        .coerceIn(0f, GUIDE_MAX_CONTENT_PX)
+    val height = (headerPx + timelineHeightPx.coerceAtLeast(0f))
+        .coerceIn(0f, GUIDE_MAX_CONTENT_PX)
+    return width to height
+}
+
 fun maxScrollOffset(contentPx: Float, viewportPx: Float): Int =
     (contentPx - viewportPx).toInt().coerceIn(0, GUIDE_MAX_CONTENT_PX.toInt())
 
@@ -258,9 +202,6 @@ fun clampScrollOffset(target: Float, contentPx: Float, viewportPx: Float): Int {
     if (target >= limit.toFloat()) return limit
     return target.toInt()
 }
-
-fun scrollOffsetToView(contentPx: Float, scrollPx: Float): Float =
-    contentPx - scrollPx
 
 fun gridLineX(axisPx: Float, column: Int, cellWidthPx: Float, scrollPx: Float): Float =
     axisPx + column * cellWidthPx - scrollPx
@@ -277,3 +218,7 @@ fun cellIntersectsViewport(
     headerPx: Float,
     viewportHeightPx: Float,
 ): Boolean = topY + heightPx >= headerPx && topY <= viewportHeightPx
+
+private val HOUR_LABELS: Array<String> = Array(24) { "%02d:00".format(it) }
+
+fun hourLabel(hour: Int): String = HOUR_LABELS[((hour % 24) + 24) % 24]

@@ -37,6 +37,8 @@ import com.starrow.epgtimer.ui.LEVEL1_GENRES
 import com.starrow.epgtimer.ui.timeLabel
 import com.starrow.epgtimer.ui.vmFactory
 
+private val SEARCH_HINT = "\u30AD\u30FC\u30EF\u30FC\u30C9\u30FB\u5E7F\u64AD\u5C40\u30FB\u30B8\u30E3\u30F3\u30EB\u306e\u3044\u305A\u308C\u3092\u6307\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044"
+
 private val PERIOD_LABELS = listOf("指定なし", "本日", "1週間", "2週間", "1ヶ月")
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -95,26 +97,33 @@ fun SearchScreen(
                     color = MaterialTheme.colorScheme.error,
                 )
             }
+            val currentGenreLevel1 = if (genreIndex == 0) null else LEVEL1_GENRES[genreIndex - 1].first
+            val currentService = if (serviceIndex == 0) null else services?.getOrNull(serviceIndex - 1)
+            val hasCondition = keyword.isNotBlank() || currentGenreLevel1 != null || currentService != null
+            if (!hasCondition) {
+                Text(
+                    text = SEARCH_HINT,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
             ) {
                 androidx.compose.material3.TextButton(
                     onClick = {
-                        val genreLevel1 = if (genreIndex == 0) null else LEVEL1_GENRES[genreIndex - 1].first
-                        val service = if (serviceIndex == 0) null else services?.getOrNull(serviceIndex - 1)
-                        onRegisterAutoAdd(viewModel.buildCondition(keyword, genreLevel1, service))
+                        onRegisterAutoAdd(viewModel.buildCondition(keyword, currentGenreLevel1, currentService))
                     },
+                    enabled = hasCondition,
                 ) {
                     Text("この条件で自動予約")
                 }
                 Button(
                     onClick = {
-                        val genreLevel1 = if (genreIndex == 0) null else LEVEL1_GENRES[genreIndex - 1].first
-                        val service = if (serviceIndex == 0) null else services?.getOrNull(serviceIndex - 1)
-                        viewModel.search(keyword, genreLevel1, service, periodIndex)
+                        viewModel.search(keyword, currentGenreLevel1, currentService, periodIndex)
                     },
-                    enabled = !viewModel.searching,
+                    enabled = !viewModel.searching && hasCondition,
                 ) {
                     Text("検索")
                 }

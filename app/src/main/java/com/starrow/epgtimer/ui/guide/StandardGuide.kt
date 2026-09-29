@@ -15,6 +15,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -127,9 +128,8 @@ private fun buildStandardGrid(
         axisPx = axisPx,
         headerPx = headerPx,
         columns = data.services.size,
-        rows = windowEndMin - originMin,
+        timelineHeightPx = mapper.totalPx,
         cellWidthPx = cellWidthPx,
-        pxPerMinute = pxPerMinute,
     )
     return StandardGrid(mapper, cellsByColumn, contentWidth, contentHeight)
 }
@@ -240,6 +240,14 @@ fun StandardGuide(
         val maxScrollX = maxScrollOffset(grid.contentWidth, viewportWPx)
         val maxScrollY = maxScrollOffset(grid.contentHeight, viewportHPx)
 
+        val currentGridState = rememberUpdatedState(grid)
+        val currentCellWState = rememberUpdatedState(cellW)
+        val currentAxisPxState = rememberUpdatedState(axisPx)
+        val currentHeaderPxState = rememberUpdatedState(headerPx)
+        val currentServicesState = rememberUpdatedState(data.services)
+        val currentMaxScrollXState = rememberUpdatedState(maxScrollX.toFloat())
+        val currentMaxScrollYState = rememberUpdatedState(maxScrollY.toFloat())
+
         LaunchedEffect(grid, viewportHPx) {
             val target = if (nowInWindow && grid.mapper.isKept(nowMin)) {
                 headerPx + grid.mapper.y(nowMin) - viewportHPx / 2f
@@ -255,20 +263,33 @@ fun StandardGuide(
                     .fillMaxSize()
                     .pointerInput(Unit) {
                         detectTapGestures { offset ->
-                            val column = gridColumnAt(scrollX + offset.x, axisPx, cellW, grid.cellsByColumn.size)
+                            val currentGrid = currentGridState.value
+                            val currentCellW = currentCellWState.value
+                            val currentAxisPx = currentAxisPxState.value
+                            val currentHeaderPx = currentHeaderPxState.value
+                            val currentServices = currentServicesState.value
+                            val column = gridColumnAt(
+                                scrollX + offset.x,
+                                currentAxisPx,
+                                currentCellW,
+                                currentGrid.cellsByColumn.size,
+                            )
                             if (column < 0) return@detectTapGestures
-                            val minutes = grid.mapper.minutesAt(scrollY + offset.y - headerPx)
-                            grid.cellsByColumn[column]
+                            val minutes = currentGrid.mapper.minutesAt(scrollY + offset.y - currentHeaderPx)
+                            currentGrid.cellsByColumn[column]
                                 .firstOrNull { minutes >= it.startMin && minutes < it.endMin }
                                 ?.let { cell ->
-                                    data.services.getOrNull(column)?.let { onEventClick(cell.event, it) }
+                                    currentServices.getOrNull(column)
+                                        ?.let { onEventClick(cell.event, it) }
                                 }
                         }
                     }
-                    .pointerInput(grid, cellW, axisPx, viewportWPx, viewportHPx) {
+                    .pointerInput(Unit) {
+                        val currentMaxX = currentMaxScrollXState.value
+                        val currentMaxY = currentMaxScrollYState.value
                         detectTransformGestures { _, pan, _, _ ->
-                            scrollX = (scrollX - pan.x).coerceIn(0f, maxScrollX.toFloat())
-                            scrollY = (scrollY - pan.y).coerceIn(0f, maxScrollY.toFloat())
+                            scrollX = (scrollX - pan.x).coerceIn(0f, currentMaxX)
+                            scrollY = (scrollY - pan.y).coerceIn(0f, currentMaxY)
                         }
                     },
             ) {
@@ -388,7 +409,7 @@ fun StandardGuide(
                         val label = if (hour == 0) {
                             dateLabel(weekStart.plusDays(day.toLong()))
                         } else {
-                            "%02d:00".format(hour)
+                            hourLabel(hour)
                         }
                         val layout = textMeasurer.measure(
                             text = AnnotatedString(label),

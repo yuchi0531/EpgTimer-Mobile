@@ -86,16 +86,31 @@ class EpgRepositoryIntegrationTest {
     }
 
     @Test
+    fun `search without any condition is rejected before hitting the server`() = runBlocking {
+        val today = EpgClock.now().toLocalDate()
+        val result = repository.searchEvents(SearchCondition.empty(), today, today.plusDays(1))
+        assertTrue("条件無しの検索が拒否されていない", result.isFailure)
+    }
+
+    @Test
     fun `search without service filter still matches events`() = runBlocking {
         val today = EpgClock.now().toLocalDate()
-        val result = repository.searchEvents(SearchCondition.empty(), today, today.plusDays(1)).getOrThrow()
+        val result = repository.searchEvents(
+            SearchCondition.empty().copy(andKey = "a"),
+            today,
+            today.plusDays(1),
+        ).getOrThrow()
         assertTrue("放送局未指定の検索が1件もヒットしていない", result.isNotEmpty())
     }
 
     @Test
     fun `search narrows by genre nibble level1`() = runBlocking {
         val today = EpgClock.now().toLocalDate()
-        val all = repository.searchEvents(SearchCondition.empty(), today, today.plusDays(1)).getOrThrow()
+        val all = repository.searchEvents(
+            SearchCondition.empty().copy(andKey = "a"),
+            today,
+            today.plusDays(1),
+        ).getOrThrow()
         assertTrue(all.isNotEmpty())
         val anime = repository.searchEvents(
             SearchCondition.empty().copy(
@@ -116,8 +131,11 @@ class EpgRepositoryIntegrationTest {
     @Test
     fun `getEvent resolves a single event by event key`() = runBlocking {
         val today = EpgClock.now().toLocalDate()
-        val events = repository.searchEvents(SearchCondition.empty(), today, today.plusDays(1))
-            .getOrThrow()
+        val events = repository.searchEvents(
+            SearchCondition.empty().copy(andKey = "a"),
+            today,
+            today.plusDays(1),
+        ).getOrThrow()
         assumeTrue(events.isNotEmpty())
         val event = events.first()
         val fetched = repository.getEvent(event.serviceKey, event.eventId).getOrThrow()

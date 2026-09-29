@@ -117,33 +117,83 @@ fun ProgramGuideScreen(
                 .fillMaxWidth()
                 .weight(1f),
         ) {
-            when {
-                error != null -> GuideError(
+            val content: @Composable () -> Unit = when {
+                data == null -> {
+                    { CircularProgressIndicator(Modifier.align(Alignment.Center)) }
+                }
+                mode == CustomProgramGuide.VIEW_MODE_LIST -> {
+                    { GuideList(data = data, onOpenEvent = onOpenEvent) }
+                }
+                mode == CustomProgramGuide.VIEW_MODE_WEEK -> {
+                    {
+                        WeekGuideContent(
+                            data = data,
+                            guide = guide,
+                            hourHeightDp = hourHeightDp,
+                            onOpenEvent = onOpenEvent,
+                        )
+                    }
+                }
+                else -> {
+                    {
+                        StandardGuide(
+                            data = data,
+                            weekStart = weekStart,
+                            hourHeightDp = hourHeightDp,
+                            collapse = guide.needTimeOnlyBasic,
+                            logos = logos,
+                            onEventClick = { event, service -> onOpenEvent(event, service) },
+                        )
+                    }
+                }
+            }
+            if (error != null && data == null) {
+                GuideError(
                     message = error,
                     onRetry = { viewModel.load(guide, mode) },
                 )
-                data == null || loading -> {
-                    CircularProgressIndicator(Modifier.align(Alignment.Center))
+            } else {
+                content()
+                if (loading && data != null) {
+                    CircularProgressIndicator(
+                        Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(8.dp),
+                    )
                 }
-                mode == CustomProgramGuide.VIEW_MODE_LIST -> GuideList(
-                    data = data,
-                    onOpenEvent = onOpenEvent,
-                )
-                mode == CustomProgramGuide.VIEW_MODE_WEEK -> WeekGuideContent(
-                    data = data,
-                    guide = guide,
-                    hourHeightDp = hourHeightDp,
-                    onOpenEvent = onOpenEvent,
-                )
-                else -> StandardGuide(
-                    data = data,
-                    weekStart = weekStart,
-                    hourHeightDp = hourHeightDp,
-                    collapse = guide.needTimeOnlyBasic,
-                    logos = logos,
-                    onEventClick = { event, service -> onOpenEvent(event, service) },
-                )
+                if (error != null && data != null) {
+                    GuideStaleBanner(
+                        message = error,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(8.dp),
+                        onRetry = { viewModel.load(guide, mode) },
+                    )
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun GuideStaleBanner(message: String, modifier: Modifier, onRetry: () -> Unit) {
+    androidx.compose.material3.Surface(
+        color = MaterialTheme.colorScheme.errorContainer,
+        modifier = modifier,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            TextButton(onClick = onRetry) { Text("再試行") }
         }
     }
 }

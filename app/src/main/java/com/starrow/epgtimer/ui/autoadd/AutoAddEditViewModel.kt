@@ -27,6 +27,7 @@ val FREE_CA_LABELS = listOf("無料・有料を対象", "無料のみ", "有料�
 
 data class AutoAddForm(
     val dataId: Int = EpgAutoAddData.NEW_DATA_ID,
+    val addCount: Int = 0,
     val andKey: String = "",
     val notKey: String = "",
     val note: String = "",
@@ -70,6 +71,7 @@ fun autoAddFormOf(item: EpgAutoAddData): AutoAddForm {
     val date = item.searchKey.dateList.firstOrNull()
     return AutoAddForm(
         dataId = item.dataId,
+        addCount = item.addCount,
         andKey = and.plain,
         notKey = not.plain,
         note = not.note,
@@ -175,7 +177,7 @@ fun AutoAddForm.toAutoAddData(): EpgAutoAddData {
         dataId = dataId,
         searchKey = searchKey,
         recSetting = recSetting,
-        addCount = 0,
+        addCount = addCount,
     )
 }
 

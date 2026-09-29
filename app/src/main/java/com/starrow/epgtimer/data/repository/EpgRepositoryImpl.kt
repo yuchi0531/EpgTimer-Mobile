@@ -158,13 +158,22 @@ class EpgRepositoryImpl(
     override suspend fun importGuides(input: InputStream): Result<ImportGuidesResult> =
         withContext(Dispatchers.IO) {
             try {
-                val text = input.use { it.readBytes() }.toString(Charsets.UTF_8).removePrefix("﻿")
+                val bytes = input.use { it.readNBytes(MAX_GUIDES_XML + 1) }
+                if (bytes.size > MAX_GUIDES_XML) {
+                    return@withContext Result.failure(
+                        IllegalArgumentException("設定ファイルが大きすぎます(上限 ${MAX_GUIDES_XML / 1024}KB)"),
+                    )
+                }
+                val text = bytes.toString(Charsets.UTF_8).removePrefix("﻿")
                 if (!text.contains("<Settings")) {
                     return@withContext Result.failure(
                         IllegalArgumentException("EpgTimer/EpgTimerNWの設定XML(<Settings>)ではありません"),
                     )
                 }
-                val parsed = GuideXmlParser.parse(text)
+                val parsed = GuideXmlParser.parseOrNull(text)
+                    ?: return@withContext Result.failure(
+                        IllegalArgumentException("設定XMLを解析できませんでした"),
+                    )
                 prefs.edit().putString(KEY_GUIDES_XML, text).apply()
                 _guides.value =
                     if (parsed.useCustomEpgView) parsed.guides else DefaultGuides.create()
@@ -274,18 +283,18 @@ class EpgRepositoryImpl(
         withServer { it.enumEpgAutoAdd() }
 
     override suspend fun addAutoAdd(item: EpgAutoAddData): Result<Int> {
-        val before = getAutoAdds().getOrThrow().map { it.dataId }.toSet()
+        val before = getAutoAdds().getOrElse { return Result.failure(it) }.map { it.dataId }.toSet()
         val result = withServer { it.addEpgAutoAdd(listOf(item.copy(dataId = EpgAutoAddData.NEW_DATA_ID, addCount = 0))) }
         val failure = result.exceptionOrNull()
         if (failure != null) return Result.failure(failure)
-        val after = getAutoAdds().getOrThrow()
+        val after = getAutoAdds().getOrElse { return Result.failure(it) }
         val added = after.firstOrNull { it.dataId !in before }
             ?: return Result.failure(IllegalStateException("登録した自動予約条件が一覧に見つかりませんでした"))
         return Result.success(added.dataId)
     }
 
     override suspend fun changeAutoAdd(item: EpgAutoAddData): Result<Unit> {
-        val result = withServer { it.changeEpgAutoAdd(listOf(item.copy(addCount = 0))) }
+        val result = withServer { it.changeEpgAutoAdd(listOf(item)) }
         if (result.isFailure) return result
         return getAutoAdds().map { }
     }
@@ -297,14 +306,19 @@ class EpgRepositoryImpl(
         key: SearchCondition,
         start: LocalDate,
         end: LocalDate,
-    ): Result<List<EpgEvent>> = withServer { client ->
-        val all = servicesCache ?: client.enumService().also { servicesCache = it }
-        val scoped = if (key.serviceList.isEmpty()) {
-            key.copy(serviceList = all.map { it.key })
-        } else {
-            key
+    ): Result<List<EpgEvent>> {
+        if (key.isEmpty) {
+            return Result.failure(IllegalArgumentException("検索条件を指定してください"))
         }
-        client.searchPg(listOf(scoped), start.atStartOfDay(), end.plusDays(1).atStartOfDay())
+        return withServer { client ->
+            val all = servicesCache ?: client.enumService().also { servicesCache = it }
+            val scoped = if (key.serviceList.isEmpty()) {
+                key.copy(serviceList = all.map { it.key })
+            } else {
+                key
+            }
+            client.searchPg(listOf(scoped), start.atStartOfDay(), end.plusDays(1).atStartOfDay())
+        }
     }
 
     override suspend fun loadLogos(): Result<Map<String, ByteArray>> {
@@ -376,6 +390,7 @@ class EpgRepositoryImpl(
         private const val BUSY_RETRIES = 3
         private const val BUSY_RETRY_DELAY_MS = 1000L
         private const val MAX_CACHE_ENTRIES = 4
+        private const val MAX_GUIDES_XML = 4 * 1024 * 1024
 
         private const val CH_SET5_NAME = "ChSet5.txt"
         private const val LOGO_INI_NAME = "LogoData.ini"

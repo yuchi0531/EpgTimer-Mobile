@@ -21,55 +21,6 @@ class GuideTimelineTest {
     }
 
     @Test
-    fun `visible rows cover the scrolled viewport and clamp to bounds`() {
-        assertEquals(0..4, visibleRows(0f, 500f, 50f, 100f, 5))
-        assertEquals(2..4, visibleRows(250f, 500f, 50f, 100f, 5))
-        assertEquals(4..4, visibleRows(99999f, 500f, 50f, 100f, 5))
-    }
-
-    @Test
-    fun `visible rows is empty when there is no row to draw`() {
-        assertEquals(0..-1, visibleRows(0f, 500f, 50f, 100f, 0))
-    }
-
-    @Test
-    fun `view origin shifts the grid so the header stays pinned`() {
-        assertEquals(50f to 50f, viewOrigin(0f, 0f, 50f))
-        assertEquals(-450f to -950f, viewOrigin(500f, 1000f, 50f))
-    }
-
-    @Test
-    fun `view rect is anchored to the scrolled position`() {
-        val rect = viewRect(1200f, 4000f, 500f, 500f, 4000f, 20000f)
-        assertEquals(1200f, rect.left, 0.01f)
-        assertEquals(4000f, rect.top, 0.01f)
-        assertEquals(1700f, rect.right, 0.01f)
-        assertEquals(4500f, rect.bottom, 0.01f)
-    }
-
-    @Test
-    fun `view rect never exceeds the content and never has a negative size`() {
-        val past = viewRect(100000f, 100000f, 500f, 500f, 400f, 400f)
-        assertEquals(400f, past.left, 0.01f)
-        assertEquals(400f, past.top, 0.01f)
-        assertEquals(400f, past.right, 0.01f)
-        assertEquals(400f, past.bottom, 0.01f)
-    }
-
-    @Test
-    fun `guide surface stays device sized and inside the content`() {
-        val surface = guideSurface(5000f, 9000f, 1080f, 1920f, 156f, 20000f, 20000f)
-        assertEquals(1080f, surface.width, 0.01f)
-        assertEquals(1920f, surface.height, 0.01f)
-        assertTrue(surface.originX < 0f)
-        assertTrue(surface.originY < 0f)
-        assertTrue(surface.rect.left >= 0f)
-        assertTrue(surface.rect.top >= 0f)
-        assertTrue(surface.rect.right <= 20000f)
-        assertTrue(surface.rect.bottom <= 20000f)
-    }
-
-    @Test
     fun `grid column at returns minus one outside the columns`() {
         assertEquals(-1, gridColumnAt(20f, 50f, 100f, 5))
         assertEquals(0, gridColumnAt(50f, 50f, 100f, 5))
@@ -180,19 +131,41 @@ class GuideTimelineTest {
     }
 
     @Test
-    fun `visible columns and rows never return a negative range`() {
+    fun `visible columns never return a negative range`() {
         val columns = visibleColumns(0f, 1080f, 168f, 288f, 48)
         assertTrue(columns.first >= 0)
         assertTrue(columns.last >= columns.first)
         assertTrue(columns.last < 48)
 
-        val rows = visibleRows(0f, 2400f, 0f, 1200f, 168)
-        assertTrue(rows.first >= 0)
-        assertTrue(rows.last >= rows.first)
-        assertTrue(rows.last < 168)
-
         assertEquals(0..-1, visibleColumns(0f, 1080f, 168f, 0f, 48))
-        assertEquals(0..-1, visibleRows(0f, 2400f, 0f, 0f, 168))
+        assertEquals(0..-1, visibleColumns(0f, 1080f, 168f, 288f, 0))
+    }
+
+    @Test
+    fun `collapsing empty hours shortens the content so no blank area is scrollable`() {
+        val pxPerMinute = 2f
+        val collapsed = buildTimeline(0f, 600f, listOf(60f to 120f, 300f to 360f), collapse = true)
+        val mapper = TimelineMapper(0f, 600f, collapsed, pxPerMinute)
+        val uncollapsed = TimelineMapper(0f, 600f, listOf(TimeSegment(0f, 600f)), pxPerMinute)
+
+        val (collapsedWidth, collapsedHeight) = guideContentSizes(
+            axisPx = 50f,
+            headerPx = 40f,
+            columns = 10,
+            timelineHeightPx = mapper.totalPx,
+            cellWidthPx = 100f,
+        )
+        val (_, plainHeight) = guideContentSizes(
+            axisPx = 50f,
+            headerPx = 40f,
+            columns = 10,
+            timelineHeightPx = uncollapsed.totalPx,
+            cellWidthPx = 100f,
+        )
+
+        assertTrue(collapsedHeight < plainHeight)
+        assertEquals(40f + mapper.totalPx, collapsedHeight, 0.01f)
+        assertEquals(collapsedWidth, 50f + 10 * 100f, 0.01f)
     }
 
     @Test

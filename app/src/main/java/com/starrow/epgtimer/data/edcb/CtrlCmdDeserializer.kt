@@ -151,6 +151,9 @@ class CtrlCmdDeserializer(private val data: ByteArray, var version: Int = 0) {
         if (size == 4) {
             return null
         }
+        if (size < 4) {
+            throw EdcbException(ErrCode.CMD_ERR_DISCONNECT, "可選構造体のサイズが不正です: $size")
+        }
         position -= 4
         return body()
     }

@@ -135,9 +135,8 @@ private fun buildWeekGrid(
         axisPx = axisPx,
         headerPx = headerPx,
         columns = days.size,
-        rows = endCycle - originCycle,
+        timelineHeightPx = mapper.totalPx,
         cellWidthPx = cellWidthPx,
-        pxPerMinute = pxPerMinute,
     )
     return WeekGrid(mapper, columnEvents, contentWidth, contentHeight)
 }
@@ -354,7 +353,7 @@ fun WeekGuide(
                     val y = rowLineY(0f, minutes, grid.mapper, drawScrollY)
                     if (y < -24f || y > size.height) continue
                     val layout = textMeasurer.measure(
-                        text = AnnotatedString("%02d:00".format((startHour + hour) % 24)),
+                        text = AnnotatedString(hourLabel(startHour + hour)),
                         style = TextStyle(fontSize = 11.sp, color = colors.onSurfaceVariant),
                         constraints = Constraints(maxWidth = (axisPx - axisLabelPadPx * 2f).toInt().coerceAtLeast(1)),
                     )

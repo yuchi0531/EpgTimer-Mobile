@@ -17,10 +17,13 @@ data class ParsedGuides(
 
 object GuideXmlParser {
 
-    fun parse(xml: String): ParsedGuides = try {
+    fun parse(xml: String): ParsedGuides = parseOrNull(xml)
+        ?: ParsedGuides(useCustomEpgView = false, guides = emptyList())
+
+    fun parseOrNull(xml: String): ParsedGuides? = try {
         parseDocument(xml.removePrefix("﻿"))
     } catch (ignored: Exception) {
-        ParsedGuides(useCustomEpgView = false, guides = emptyList())
+        null
     }
 
     private fun parseDocument(xml: String): ParsedGuides {
