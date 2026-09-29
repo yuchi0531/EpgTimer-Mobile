@@ -30,6 +30,8 @@ data class GuideData(
     val weekStart: LocalDate,
     val services: List<ServiceInfo>,
     val eventsByService: Map<Long, List<GuideEvent>>,
+    val serviceGroups: List<com.starrow.epgtimer.data.guide.ServiceGroup> =
+        com.starrow.epgtimer.data.guide.ServiceGroup.listing(services),
 )
 
 data class ImportGuidesResult(

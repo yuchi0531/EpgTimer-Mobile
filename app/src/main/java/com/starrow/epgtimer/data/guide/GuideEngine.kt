@@ -39,6 +39,9 @@ class GuideEngine {
         return result.values.toList()
     }
 
+    fun serviceGroups(services: List<ServiceInfo>): List<ServiceGroup> =
+        ServiceGroup.listing(services)
+
     fun buildGuideData(
         guide: CustomProgramGuide,
         weekStart: LocalDate,
@@ -47,17 +50,20 @@ class GuideEngine {
     ): GuideData {
         val contentKinds = guide.viewContentKindList.sorted()
         val now = EpgClock.now()
+        val serviceGroups = serviceGroups(expandedServices)
         val grouped = LinkedHashMap<Long, MutableList<GuideEvent>>()
-        for (service in expandedServices) {
-            if (!grouped.containsKey(service.key)) {
-                grouped[service.key] = mutableListOf()
+        val groupByMember = HashMap<Long, Long>()
+        for (group in serviceGroups) {
+            grouped[group.primary.key] = mutableListOf()
+            for (member in group.members) {
+                groupByMember[member.key] = group.primary.key
             }
         }
         for (event in events) {
             if (event.startDateTime == null) {
                 continue
             }
-            val target = grouped[event.serviceKey] ?: continue
+            val target = grouped[groupByMember[event.serviceKey]] ?: continue
             var dimmed = false
             if (contentKinds.isNotEmpty() && isGenreFiltered(event, contentKinds)) {
                 if (!guide.highlightContentKind) {
@@ -74,8 +80,9 @@ class GuideEngine {
         return GuideData(
             guide = guide,
             weekStart = weekStart,
-            services = expandedServices,
+            services = serviceGroups.map { it.primary },
             eventsByService = eventsByService,
+            serviceGroups = serviceGroups,
         )
     }
 

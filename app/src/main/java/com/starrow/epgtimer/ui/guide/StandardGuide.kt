@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.starrow.epgtimer.data.guide.ServiceGroup
 import com.starrow.epgtimer.data.model.ServiceInfo
 import com.starrow.epgtimer.data.repository.GuideData
 import com.starrow.epgtimer.data.repository.GuideEvent
@@ -70,12 +71,17 @@ private class StandardCell(
 private class StandardGrid(
     val mapper: TimelineMapper,
     val cellsByColumn: List<List<StandardCell>>,
+    val groupStartsPx: FloatArray,
+    val groupWidthsPx: FloatArray,
     val contentWidth: Float,
     val contentHeight: Float,
 )
 
 fun eventDurationMinutes(event: com.starrow.epgtimer.data.model.EpgEvent): Float =
     (if (event.durationSeconds > 0) event.durationSeconds else 1800) / 60f
+
+private fun serviceOf(guideEvent: GuideEvent, group: ServiceGroup): ServiceInfo =
+    group.members.firstOrNull { it.key == guideEvent.event.serviceKey } ?: group.primary
 
 private fun buildStandardGrid(
     data: GuideData,
@@ -88,6 +94,7 @@ private fun buildStandardGrid(
     headerPx: Float,
     collapse: Boolean,
 ): StandardGrid {
+    val groups = data.serviceGroups
     val busy = mutableListOf<Pair<Float, Float>>()
     for (list in data.eventsByService.values) {
         for (guideEvent in list) {
@@ -102,36 +109,35 @@ private fun buildStandardGrid(
         segments = buildTimeline(originMin, windowEndMin, busy, collapse),
         pxPerMinute = pxPerMinute,
     )
-    val cellsByColumn = ArrayList<List<StandardCell>>(data.services.size)
-    for (service in data.services) {
+    val cellsByColumn = ArrayList<List<StandardCell>>(groups.size)
+    for (group in groups) {
         val cells = ArrayList<StandardCell>()
-        for (guideEvent in data.eventsByService[service.key].orEmpty()) {
-            val start = guideEvent.event.startDateTime ?: continue
-            val startMin = minutesBetween(origin, start)
-            val endMin = startMin + eventDurationMinutes(guideEvent.event)
-            if (endMin <= originMin || startMin >= windowEndMin) continue
-            val level1 = guideEvent.event.contentInfo?.nibbleList?.firstOrNull()?.nibbleLevel1 ?: 0x0F
-            cells.add(
-                StandardCell(
-                    startMin = startMin.coerceAtLeast(originMin),
-                    endMin = endMin.coerceAtMost(windowEndMin),
-                    y0 = mapper.y(startMin.coerceAtLeast(originMin)),
-                    y1 = mapper.y(endMin.coerceAtMost(windowEndMin)),
-                    level1 = level1,
-                    event = guideEvent,
-                ),
-            )
+        for (member in group.members) {
+            for (guideEvent in data.eventsByService[member.key].orEmpty()) {
+                val start = guideEvent.event.startDateTime ?: continue
+                val startMin = minutesBetween(origin, start)
+                val endMin = startMin + eventDurationMinutes(guideEvent.event)
+                if (endMin <= originMin || startMin >= windowEndMin) continue
+                val level1 = guideEvent.event.contentInfo?.nibbleList?.firstOrNull()?.nibbleLevel1 ?: 0x0F
+                cells.add(
+                    StandardCell(
+                        startMin = startMin.coerceAtLeast(originMin),
+                        endMin = endMin.coerceAtMost(windowEndMin),
+                        y0 = mapper.y(startMin.coerceAtLeast(originMin)),
+                        y1 = mapper.y(endMin.coerceAtMost(windowEndMin)),
+                        level1 = level1,
+                        event = guideEvent,
+                    ),
+                )
+            }
         }
-        cellsByColumn.add(cells)
+        cellsByColumn.add(cells.sortedBy { it.startMin })
     }
-    val (contentWidth, contentHeight) = guideContentSizes(
-        axisPx = axisPx,
-        headerPx = headerPx,
-        columns = data.services.size,
-        timelineHeightPx = mapper.totalPx,
-        cellWidthPx = cellWidthPx,
-    )
-    return StandardGrid(mapper, cellsByColumn, contentWidth, contentHeight)
+    val groupWidthsPx = guideGroupWidths(cellWidthPx, IntArray(groups.size) { groups[it].span })
+    val groupStartsPx = guideGroupColumnStarts(axisPx, groupWidthsPx)
+    val contentWidth = (axisPx + groupWidthsPx.sum()).coerceIn(0f, GUIDE_MAX_CONTENT_PX)
+    val contentHeight = (headerPx + mapper.totalPx).coerceIn(0f, GUIDE_MAX_CONTENT_PX)
+    return StandardGrid(mapper, cellsByColumn, groupStartsPx, groupWidthsPx, contentWidth, contentHeight)
 }
 
 private fun DrawScope.drawStandardCellRect(
@@ -192,10 +198,11 @@ fun StandardGuide(
     logos: Map<String, ImageBitmap> = emptyMap(),
     onEventClick: (GuideEvent, ServiceInfo) -> Unit,
 ) {
-    if (data.services.isEmpty()) {
+    if (data.serviceGroups.isEmpty()) {
         GuideEmptyMessage("サービスがありません")
         return
     }
+    val groups = data.serviceGroups
     val density = LocalDensity.current
     val colors = MaterialTheme.colorScheme
     val textMeasurer = rememberTextMeasurer()
@@ -217,7 +224,7 @@ fun StandardGuide(
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val viewportW = maxWidth
         val viewportH = maxHeight
-        val cellWidth = maxOf(GUIDE_MIN_CELL_WIDTH_DP.dp, viewportW / data.services.size)
+        val cellWidth = maxOf(GUIDE_MIN_CELL_WIDTH_DP.dp, viewportW / groups.size)
         val axisPx = with(density) { axisWidth.toPx() }
         val headerPx = with(density) { headerHeight.toPx() }
         val cellW = with(density) { cellWidth.toPx() }
@@ -241,10 +248,7 @@ fun StandardGuide(
         val maxScrollY = maxScrollOffset(grid.contentHeight, viewportHPx)
 
         val currentGridState = rememberUpdatedState(grid)
-        val currentCellWState = rememberUpdatedState(cellW)
-        val currentAxisPxState = rememberUpdatedState(axisPx)
-        val currentHeaderPxState = rememberUpdatedState(headerPx)
-        val currentServicesState = rememberUpdatedState(data.services)
+        val currentGroupsState = rememberUpdatedState(groups)
         val currentMaxScrollXState = rememberUpdatedState(maxScrollX.toFloat())
         val currentMaxScrollYState = rememberUpdatedState(maxScrollY.toFloat())
 
@@ -264,23 +268,19 @@ fun StandardGuide(
                     .pointerInput(Unit) {
                         detectTapGestures { offset ->
                             val currentGrid = currentGridState.value
-                            val currentCellW = currentCellWState.value
-                            val currentAxisPx = currentAxisPxState.value
-                            val currentHeaderPx = currentHeaderPxState.value
-                            val currentServices = currentServicesState.value
-                            val column = gridColumnAt(
+                            val currentGroups = currentGroupsState.value
+                            val column = groupColumnAt(
+                                currentGrid.groupStartsPx,
+                                currentGrid.groupWidthsPx,
                                 scrollX + offset.x,
-                                currentAxisPx,
-                                currentCellW,
-                                currentGrid.cellsByColumn.size,
                             )
                             if (column < 0) return@detectTapGestures
-                            val minutes = currentGrid.mapper.minutesAt(scrollY + offset.y - currentHeaderPx)
+                            val minutes = currentGrid.mapper.minutesAt(scrollY + offset.y - headerPx)
                             currentGrid.cellsByColumn[column]
                                 .firstOrNull { minutes >= it.startMin && minutes < it.endMin }
                                 ?.let { cell ->
-                                    currentServices.getOrNull(column)
-                                        ?.let { onEventClick(cell.event, it) }
+                                    val service = serviceOf(cell.event, currentGroups[column])
+                                    onEventClick(cell.event, service)
                                 }
                         }
                     }
@@ -297,10 +297,10 @@ fun StandardGuide(
                 val drawScrollY = scrollY
                 clipRect(left = 0f, top = headerPx, right = size.width, bottom = size.height) {
                 drawRect(color = colors.surface, topLeft = Offset(0f, headerPx), size = Size(size.width, size.height - headerPx))
-                val columns = visibleColumns(drawScrollX, size.width, axisPx, cellW, data.services.size)
+                val columns = visibleGroupColumns(grid.groupStartsPx, grid.groupWidthsPx, drawScrollX, size.width)
 
                 for (column in columns) {
-                    val x = gridLineX(axisPx, column, cellW, drawScrollX)
+                    val x = grid.groupStartsPx[column] - drawScrollX
                     drawLine(
                         color = colors.outlineVariant,
                         start = Offset(x, headerPx),
@@ -327,7 +327,8 @@ fun StandardGuide(
                 }
 
                 for (column in columns) {
-                    val x = gridLineX(axisPx, column, cellW, drawScrollX)
+                    val x = grid.groupStartsPx[column] - drawScrollX
+                    val columnWidth = grid.groupWidthsPx[column]
                     for (cell in grid.cellsByColumn[column]) {
                         val top = cellTopY(headerPx, grid.mapper, cell.startMin, drawScrollY)
                         val height = (cell.y1 - cell.y0).coerceAtLeast(GUIDE_CELL_MIN_HEIGHT_PX)
@@ -344,14 +345,14 @@ fun StandardGuide(
                                 dimmed = cell.event.dimmed,
                                 x = x,
                                 top = top,
-                                cellW = cellW,
+                                cellW = columnWidth,
                                 height = height,
                                 bandPx = bandPx,
                             )
                             drawFittedCellText(
                                 textMeasurer = textMeasurer,
                                 title = cell.event.event.title,
-                                maxWidth = ((cellW - 2f).coerceAtLeast(1f) - bandPx - textPad * 2).toInt(),
+                                maxWidth = ((columnWidth - 2f).coerceAtLeast(1f) - bandPx - textPad * 2).toInt(),
                                 maxHeight = height - textPad,
                                 style = TextStyle(
                                     fontSize = 12.sp,
@@ -443,20 +444,21 @@ fun StandardGuide(
                     end = Offset(size.width, size.height - 1f),
                     strokeWidth = 1f,
                 )
-                val columns = visibleColumns(drawScrollX, size.width, axisPx, cellW, data.services.size)
-                val logoUsable = cellW >= with(density) { GUIDE_LOGO_MIN_CELL_WIDTH_DP.dp.toPx() }
+                val columns = visibleGroupColumns(grid.groupStartsPx, grid.groupWidthsPx, drawScrollX, size.width)
+                val logoMinWidthPx = with(density) { GUIDE_LOGO_MIN_CELL_WIDTH_DP.dp.toPx() }
                 val logoAreaH = size.height * GUIDE_LOGO_AREA_RATIO
                 for (column in columns) {
-                    val x = gridLineX(axisPx, column, cellW, drawScrollX)
-                    if (x + cellW < 0f || x > size.width) continue
+                    val x = grid.groupStartsPx[column] - drawScrollX
+                    val columnWidth = grid.groupWidthsPx[column]
+                    if (x + columnWidth < 0f || x > size.width) continue
                     drawLine(
                         color = colors.outlineVariant,
                         start = Offset(x, 0f),
                         end = Offset(x, size.height),
                         strokeWidth = 1f,
                     )
-                    val service = data.services[column]
-                    val logo = if (logoUsable) logos[service.key.toString(16)] else null
+                    val service = groups[column].primary
+                    val logo = if (columnWidth >= logoMinWidthPx) logos[service.key.toString(16)] else null
                     val maxLines = if (logo == null) 2 else 1
                     val textCenterY = if (logo == null) {
                         size.height / 2f
@@ -467,7 +469,7 @@ fun StandardGuide(
                         drawLogoFitted(
                             image = logo,
                             cellX = x,
-                            cellW = cellW,
+                            cellW = columnWidth,
                             areaTop = (size.height - logoAreaH) / 2f,
                             areaH = logoAreaH,
                         )
@@ -481,15 +483,30 @@ fun StandardGuide(
                         ),
                         maxLines = maxLines,
                         overflow = TextOverflow.Ellipsis,
-                        constraints = Constraints(maxWidth = (cellW - headerTextInsetPx).toInt().coerceAtLeast(1)),
+                        constraints = Constraints(maxWidth = (columnWidth - headerTextInsetPx).toInt().coerceAtLeast(1)),
                     )
                     drawText(
                         layout,
                         topLeft = Offset(
-                            x + (cellW - layout.size.width) / 2f,
+                            x + (columnWidth - layout.size.width) / 2f,
                             textCenterY - layout.size.height / 2f,
                         ),
                     )
+                    if (groups[column].isMerged) {
+                        val spanLabel = textMeasurer.measure(
+                            text = AnnotatedString("+${groups[column].span - 1}"),
+                            style = TextStyle(fontSize = 10.sp, color = colors.onSurfaceVariant),
+                            maxLines = 1,
+                            constraints = Constraints(maxWidth = (columnWidth - headerTextInsetPx).toInt().coerceAtLeast(1)),
+                        )
+                        drawText(
+                            spanLabel,
+                            topLeft = Offset(
+                                x + (columnWidth - spanLabel.size.width) / 2f,
+                                textCenterY + layout.size.height / 2f,
+                            ),
+                        )
+                    }
                 }
             }
         }

@@ -219,7 +219,7 @@ private fun GuideList(
     data: GuideData,
     onOpenEvent: (GuideEvent, ServiceInfo?) -> Unit,
 ) {
-    val servicesByKey = remember(data) { data.services.associateBy { it.key } }
+    val servicesByKey = remember(data) { data.serviceGroups.flatMap { it.members }.associateBy { it.key } }
     val groups = remember(data) {
         data.eventsByService.values.flatten()
             .filter { it.event.startDateTime != null }
@@ -308,7 +308,7 @@ private fun WeekGuideContent(
             layout
         }
     }
-    val services = data.services
+    val services = data.serviceGroups.flatMap { it.members }
     if (services.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("サービスがありません", style = MaterialTheme.typography.bodyLarge)

@@ -72,7 +72,7 @@ private fun buildWeekGrid(
     days: List<LocalDate>,
     startHour: Int,
     engine: GuideEngine,
-    serviceIndex: Int,
+    service: ServiceInfo,
     originCycle: Float,
     endCycle: Float,
     pxPerMinute: Float,
@@ -81,8 +81,7 @@ private fun buildWeekGrid(
     headerPx: Float,
     collapse: Boolean,
 ): WeekGrid {
-    val service = data.services.getOrNull(serviceIndex)
-    val events = if (service == null) emptyList() else data.eventsByService[service.key].orEmpty()
+    val events = data.eventsByService[service.key].orEmpty()
     val dayIndex = days.withIndex().associate { (index, day) -> day to index }
     val busy = mutableListOf<Pair<Float, Float>>()
     val pending = ArrayList<List<GuideEvent>>(days.size)
@@ -150,12 +149,17 @@ fun WeekGuide(
     serviceIndex: Int,
     onEventClick: (GuideEvent, ServiceInfo) -> Unit,
 ) {
+    val service = data.serviceGroups
+        .asSequence()
+        .flatMap { it.members.asSequence() }
+        .drop(serviceIndex)
+        .firstOrNull()
+        ?: return GuideEmptyMessage("サービスがありません")
     val days = weekLayout.days
-    if (data.services.isEmpty() || days.isEmpty() || serviceIndex !in data.services.indices) {
+    if (days.isEmpty()) {
         GuideEmptyMessage("サービスがありません")
         return
     }
-    val service = data.services[serviceIndex]
     val density = LocalDensity.current
     val colors = MaterialTheme.colorScheme
     val textMeasurer = rememberTextMeasurer()
@@ -191,13 +195,13 @@ fun WeekGuide(
         val viewportWPx = with(density) { viewportW.toPx() }
         val viewportHPx = with(density) { viewportH.toPx() }
         val pxPerMinute = guidePpxPerMinute(with(density) { hourHeightDp.dp.toPx() })
-        val grid = remember(data, weekLayout, hourHeightDp, collapse, serviceIndex, cellWidth, density) {
+        val grid = remember(data, weekLayout, hourHeightDp, collapse, service, cellWidth, density) {
             buildWeekGrid(
                 data = data,
                 days = days,
                 startHour = startHour,
                 engine = engine,
-                serviceIndex = serviceIndex,
+                service = service,
                 originCycle = originCycle,
                 endCycle = endCycle,
                 pxPerMinute = pxPerMinute,

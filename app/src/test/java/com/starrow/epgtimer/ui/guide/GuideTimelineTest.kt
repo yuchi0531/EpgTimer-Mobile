@@ -239,4 +239,45 @@ class GuideTimelineTest {
         assertEquals(GUIDE_MAX_PX_PER_MINUTE, guidePpxPerMinute(1_000_000f), 0.001f)
         assertTrue(guidePpxPerMinute(0f) > 0f)
     }
+
+    @Test
+    fun `merged groups take as many cell widths as their span`() {
+        val widths = guideGroupWidths(100f, intArrayOf(1, 3, 2, 1))
+
+        assertEquals(listOf(100f, 300f, 200f, 100f), widths.toList())
+        assertEquals(listOf(56f, 156f, 456f, 656f), guideGroupColumnStarts(56f, widths).toList())
+    }
+
+    @Test
+    fun `group widths and starts ignore non positive spans and empty lists`() {
+        assertEquals(listOf(100f, 100f), guideGroupWidths(100f, intArrayOf(0, 1)).toList())
+        assertEquals(0, guideGroupWidths(100f, IntArray(0)).size)
+        assertEquals(0, guideGroupColumnStarts(56f, FloatArray(0)).size)
+    }
+
+    @Test
+    fun `visible group columns follow the cumulative widths instead of a fixed cell width`() {
+        val widths = guideGroupWidths(100f, intArrayOf(1, 3, 1))
+        val starts = guideGroupColumnStarts(50f, widths)
+
+        assertEquals(0..2, visibleGroupColumns(starts, widths, 0f, 700f))
+        assertEquals(0..1, visibleGroupColumns(starts, widths, 0f, 400f))
+        assertEquals(1..2, visibleGroupColumns(starts, widths, 200f, 400f))
+        assertEquals(0..-1, visibleGroupColumns(starts, FloatArray(0), 0f, 400f))
+    }
+
+    @Test
+    fun `group column lookup maps a content x to the group that owns it`() {
+        val widths = guideGroupWidths(100f, intArrayOf(1, 3, 1))
+        val starts = guideGroupColumnStarts(50f, widths)
+
+        assertEquals(-1, groupColumnAt(starts, widths, 49f))
+        assertEquals(0, groupColumnAt(starts, widths, 50f))
+        assertEquals(0, groupColumnAt(starts, widths, 149f))
+        assertEquals(1, groupColumnAt(starts, widths, 150f))
+        assertEquals(1, groupColumnAt(starts, widths, 449f))
+        assertEquals(2, groupColumnAt(starts, widths, 450f))
+        assertEquals(2, groupColumnAt(starts, widths, 549f))
+        assertEquals(-1, groupColumnAt(starts, widths, 550f))
+    }
 }

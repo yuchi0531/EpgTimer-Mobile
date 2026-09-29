@@ -107,6 +107,49 @@ fun gridColumnAt(xInView: Float, originPx: Float, cellWidthPx: Float, count: Int
     return if (column in 0 until count) column else -1
 }
 
+fun guideGroupWidths(cellWidthPx: Float, spans: IntArray): FloatArray =
+    FloatArray(spans.size) { cellWidthPx * spans[it].coerceAtLeast(1) }
+
+fun guideGroupColumnStarts(axisPx: Float, widthsPx: FloatArray): FloatArray {
+    val starts = FloatArray(widthsPx.size)
+    var acc = axisPx
+    for (index in widthsPx.indices) {
+        starts[index] = acc
+        acc += widthsPx[index]
+    }
+    return starts
+}
+
+fun visibleGroupColumns(
+    startsPx: FloatArray,
+    widthsPx: FloatArray,
+    scrollX: Float,
+    viewportWidth: Float,
+): IntRange {
+    val count = widthsPx.size
+    if (count == 0) return 0..-1
+    val from = scrollX
+    val to = scrollX + viewportWidth
+    var first = count
+    var last = -1
+    for (index in 0 until count) {
+        val start = startsPx[index]
+        val end = start + widthsPx[index]
+        if (end > from && start < to) {
+            if (index < first) first = index
+            last = index
+        }
+    }
+    return if (last < 0) 0..-1 else first..last
+}
+
+fun groupColumnAt(startsPx: FloatArray, widthsPx: FloatArray, contentX: Float): Int {
+    for (index in widthsPx.indices) {
+        if (contentX >= startsPx[index] && contentX < startsPx[index] + widthsPx[index]) return index
+    }
+    return -1
+}
+
 fun drawFittedCellText(
     textMeasurer: TextMeasurer,
     title: String,

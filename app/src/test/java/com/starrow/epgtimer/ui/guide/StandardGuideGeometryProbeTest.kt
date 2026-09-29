@@ -32,13 +32,15 @@ class StandardGuideGeometryProbeTest {
         val events = client.enumPgInfoEx(expanded.map { it.key }, window.start, window.end)
             .flatMap { it.eventList }
         val data = engine.buildGuideData(guide, weekStart, expanded, events)
-        println("PROBE services=" + data.services.size + " events=" + data.eventsByService.values.sumOf { it.size })
+        val groups = data.serviceGroups
+        println("PROBE services=" + data.services.size + " groups=" + groups.size + " merged=" +
+            groups.count { it.isMerged } + " events=" + data.eventsByService.values.sumOf { it.size })
 
         val density = 3f
         val hourHeightDp = 120
         val viewportW = 1080f
         val viewportH = 1920f
-        val cellWidth = maxOf(96f * density, viewportW / data.services.size)
+        val cellWidth = maxOf(96f * density, viewportW / groups.size)
         val axisPx = GUIDE_AXIS_WIDTH_DP * density
         val headerPx = 52f * density
         val pxPerMinute = guidePpxPerMinute(hourHeightDp * density)
@@ -46,18 +48,21 @@ class StandardGuideGeometryProbeTest {
         val windowEndMin = 7f * 1440f
 
         val mapper = TimelineMapper(0f, windowEndMin, buildTimeline(0f, windowEndMin, emptyList(), false), pxPerMinute)
-        val (contentW, contentH) = guideContentSizes(axisPx, headerPx, data.services.size, windowEndMin, cellWidth, pxPerMinute)
+        val groupWidths = guideGroupWidths(cellWidth, IntArray(groups.size) { groups[it].span })
+        val groupStarts = guideGroupColumnStarts(axisPx, groupWidths)
+        val (contentW, contentH) = guideContentSizes(axisPx, headerPx, groups.size, windowEndMin, cellWidth, pxPerMinute)
         println("PROBE contentW=$contentW contentH=$contentH totalPx=" + mapper.totalPx)
+        println("PROBE groupContentW=" + (axisPx + groupWidths.sum()))
         println("PROBE maxScrollY=" + maxScrollOffset(contentH, viewportH))
 
         val nowMin = minutesBetween(origin, now)
         val autoScroll = clampScrollOffset(headerPx + mapper.y(nowMin) - viewportH / 2f, contentH, viewportH).toFloat()
         println("PROBE nowMin=$nowMin autoScrollY=$autoScroll")
 
-        val cols = visibleColumns(0f, viewportW, axisPx, cellWidth, data.services.size)
+        val cols = visibleGroupColumns(groupStarts, groupWidths, 0f, viewportW)
         println("PROBE visibleColumns=$cols (count=${cols.count()})")
-        val gridCells = data.eventsByService[expanded[0].key].orEmpty()
-        println("PROBE col0 cells=" + gridCells.size + " firstStart=" +
+        val gridCells = data.eventsByService[groups.first().primary.key].orEmpty()
+        println("PROBE col0 group=span${groups.first().span} cells=" + gridCells.size + " firstStart=" +
             gridCells.firstOrNull()?.event?.startDateTime)
 
         var drawn = 0
@@ -65,20 +70,22 @@ class StandardGuideGeometryProbeTest {
         var minTop = Float.MAX_VALUE
         var maxTop = -Float.MAX_VALUE
         for (column in cols) {
-            for (ge in data.eventsByService[data.services[column].key].orEmpty()) {
-                val start = ge.event.startDateTime ?: continue
-                val startMin = minutesBetween(origin, start)
-                if (startMin < 0f || startMin >= windowEndMin) continue
-                val endMin = (startMin + eventDurationMinutes(ge.event)).coerceAtMost(windowEndMin)
-                val y0 = mapper.y(startMin)
-                val y1 = mapper.y(endMin)
-                val top = cellTopY(headerPx, mapper, startMin, autoScroll)
-                val height = (y1 - y0).coerceAtLeast(GUIDE_CELL_MIN_HEIGHT_PX)
-                if (!cellIntersectsViewport(top, height, headerPx, viewportH)) continue
-                drawn++
-                if (height >= GUIDE_MIN_TEXT_HEIGHT_PX) textDrawn++
-                minTop = minOf(minTop, top)
-                maxTop = maxOf(maxTop, top)
+            for (member in groups[column].members) {
+                for (ge in data.eventsByService[member.key].orEmpty()) {
+                    val start = ge.event.startDateTime ?: continue
+                    val startMin = minutesBetween(origin, start)
+                    if (startMin < 0f || startMin >= windowEndMin) continue
+                    val endMin = (startMin + eventDurationMinutes(ge.event)).coerceAtMost(windowEndMin)
+                    val y0 = mapper.y(startMin)
+                    val y1 = mapper.y(endMin)
+                    val top = cellTopY(headerPx, mapper, startMin, autoScroll)
+                    val height = (y1 - y0).coerceAtLeast(GUIDE_CELL_MIN_HEIGHT_PX)
+                    if (!cellIntersectsViewport(top, height, headerPx, viewportH)) continue
+                    drawn++
+                    if (height >= GUIDE_MIN_TEXT_HEIGHT_PX) textDrawn++
+                    minTop = minOf(minTop, top)
+                    maxTop = maxOf(maxTop, top)
+                }
             }
         }
         println("PROBE drawn=$drawn textDrawn=$textDrawn topRange=[$minTop,$maxTop]")
