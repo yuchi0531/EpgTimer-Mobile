@@ -1,0 +1,46 @@
+# Build outputs
+/build
+/*/build
+/app/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Gradle
+.gradle
+gradle-app.setting
+*.hprof
+
+# IDE
+.idea
+*.iml
+*.ipr
+*.iws
+.vscode
+
+# Android
+*.apk
+*.aab
+*.dex
+release/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Secrets
+*.keystore
+*.jks
+keystore.properties
+
+# EDCB runtime files (never commit server-side settings)
+/EpgTimerSrv.ini
+/EpgTimerNW.exe.xml
+
+# Local overrides
+local.properties
+.env
