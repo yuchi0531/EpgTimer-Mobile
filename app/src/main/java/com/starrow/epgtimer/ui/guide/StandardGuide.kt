@@ -54,7 +54,7 @@ import java.time.LocalDateTime
 
 private const val GUIDE_HEADER_HEIGHT_DP = 52
 private const val GUIDE_MIN_CELL_WIDTH_DP = 96
-private const val GUIDE_CELL_MEMBER_RATIO_DP = 48
+private const val GUIDE_CELL_MEMBER_RATIO_DP = 72
 private const val GUIDE_MIN_SLOT_HEIGHT_DP = 40
 private const val GUIDE_OVERLAP_EPSILON_MIN = 0.01f
 private const val GUIDE_LOGO_MIN_CELL_WIDTH_DP = 140
@@ -171,7 +171,23 @@ private fun buildStandardGrid(
     val groupStartsPx = guideGroupColumnStarts(axisPx, groupWidthsPx)
     val contentWidth = (axisPx + groupWidthsPx.sum()).coerceIn(0f, GUIDE_MAX_CONTENT_PX)
     val contentHeight = (headerPx + mapper.totalPx).coerceIn(0f, GUIDE_MAX_CONTENT_PX)
-    return StandardGrid(mapper, cellsByColumn, groupStartsPx, groupWidthsPx, spans, contentWidth, contentHeight)
+    val aligned = if (spans.contentEquals(IntArray(spans.size) { groups[it].span })) {
+        cellsByColumn
+    } else {
+        val single = ArrayList<List<StandardCell>>(cellsByColumn.size)
+        for ((index, cells) in cellsByColumn.withIndex()) {
+            val lanes = spans[index].coerceAtLeast(1)
+            single.add(
+                if (lanes == 1) {
+                    cells.map { it.copy(columnIndex = 0, columnCount = 1) }
+                } else {
+                    cells
+                },
+            )
+        }
+        single
+    }
+    return StandardGrid(mapper, aligned, groupStartsPx, groupWidthsPx, spans, contentWidth, contentHeight)
 }
 
 internal fun genreCellAlpha(background: Color): Float =

@@ -122,8 +122,8 @@ fun guideGroupWidths(cellWidthPx: Float, spans: IntArray): FloatArray =
     FloatArray(spans.size) { cellWidthPx * spans[it].coerceAtLeast(1) }
 
 fun effectiveSpans(spans: IntArray, cellWidthPx: Float, minMemberWidthPx: Float): IntArray =
-    IntArray(spans.size) { span ->
-        val group = span.coerceAtLeast(1)
+    IntArray(spans.size) { index ->
+        val group = spans[index].coerceAtLeast(1)
         if (group <= 1 || cellWidthPx / group >= minMemberWidthPx) group else 1
     }
 
@@ -243,25 +243,37 @@ fun drawFittedCellText(
         constraints = Constraints(maxWidth = measureWidth),
     ).size.height.toFloat()
     val fontSizes = guideFittedTextFontSizes(maxHeight, lineHeightPx, GUIDE_CELL_FONT_SIZES_SP)
-    var layout: TextLayoutResult? = null
-    for (fontSizeSp in fontSizes) {
-        for (maxLines in GUIDE_CELL_MAX_LINES downTo 1) {
-            val candidate = textMeasurer.measure(
-                text = text,
-                style = style.copy(fontSize = fontSizeSp.sp),
-                maxLines = maxLines,
-                overflow = TextOverflow.Ellipsis,
-                constraints = Constraints(maxWidth = measureWidth),
-            )
-            if (candidate.size.height <= maxHeight) {
-                layout = candidate
-                break
-            }
-            if (fontSizeSp == fontSizes.last()) layout = candidate
-        }
-        if (layout != null) break
+    val fits = { candidate: TextLayoutResult -> candidate.size.height <= maxHeight }
+    val single = { fontSizeSp: Float ->
+        textMeasurer.measure(
+            text = text,
+            style = style.copy(fontSize = fontSizeSp.sp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            constraints = Constraints(maxWidth = measureWidth),
+        )
     }
-    layout?.let { draw(it, topLeft) }
+    for (fontSizeSp in fontSizes) {
+        val oneLine = single(fontSizeSp)
+        if (fits(oneLine)) {
+            draw(oneLine, topLeft)
+            return
+        }
+    }
+    for (fontSizeSp in fontSizes) {
+        val twoLines = textMeasurer.measure(
+            text = text,
+            style = style.copy(fontSize = fontSizeSp.sp),
+            maxLines = GUIDE_CELL_MAX_LINES,
+            overflow = TextOverflow.Ellipsis,
+            constraints = Constraints(maxWidth = measureWidth),
+        )
+        if (fits(twoLines)) {
+            draw(twoLines, topLeft)
+            return
+        }
+    }
+    draw(single(fontSizes.last()), topLeft)
 }
 
 @Composable
