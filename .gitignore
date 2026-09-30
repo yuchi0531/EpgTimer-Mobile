@@ -41,6 +41,9 @@ keystore.properties
 /EpgTimerSrv.ini
 /EpgTimerNW.exe.xml
 
+# Local command-code agent state
+/.commandcode/
+
 # Local overrides
 local.properties
 .env
