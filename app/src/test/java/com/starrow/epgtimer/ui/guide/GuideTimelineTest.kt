@@ -1,5 +1,6 @@
 package com.starrow.epgtimer.ui.guide
 
+import androidx.compose.ui.graphics.luminance
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -279,5 +280,105 @@ class GuideTimelineTest {
         assertEquals(2, groupColumnAt(starts, widths, 450f))
         assertEquals(2, groupColumnAt(starts, widths, 549f))
         assertEquals(-1, groupColumnAt(starts, widths, 550f))
+    }
+
+    @Test
+    fun `fitted text shrinks the font from twelve to eight sp in descending steps`() {
+        assertEquals(listOf(12f, 11f, 10f, 9f, 8f), GUIDE_CELL_FONT_SIZES_SP)
+        assertEquals(8f, GUIDE_CELL_MIN_FONT_SIZE_SP, 0.001f)
+        assertEquals(5, GUIDE_CELL_FONT_SIZES_SP.size)
+        assertTrue(GUIDE_CELL_FONT_SIZES_SP.zipWithNext().all { (a, b) -> a > b })
+    }
+
+    @Test
+    fun `fitted text keeps the largest size that still fits the cell height`() {
+        val lineHeight = 14f
+        assertEquals(listOf(12f, 11f, 10f, 9f, 8f), guideFittedTextFontSizes(28f, lineHeight, GUIDE_CELL_FONT_SIZES_SP))
+        assertEquals(listOf(12f, 11f, 10f, 9f, 8f), guideFittedTextFontSizes(14f, lineHeight, GUIDE_CELL_FONT_SIZES_SP))
+        assertEquals(listOf(11f, 10f, 9f, 8f), guideFittedTextFontSizes(13f, lineHeight, GUIDE_CELL_FONT_SIZES_SP))
+        assertEquals(listOf(9f, 8f), guideFittedTextFontSizes(11f, lineHeight, GUIDE_CELL_FONT_SIZES_SP))
+        assertEquals(listOf(8f), guideFittedTextFontSizes(10f, lineHeight, GUIDE_CELL_FONT_SIZES_SP))
+    }
+
+    @Test
+    fun `fitted text never returns an empty ladder so a title is always drawn`() {
+        for (heightPx in listOf(13.9f, 12f, 8f, 4f, 1f, 0.01f)) {
+            val sizes = guideFittedTextFontSizes(heightPx, 14f, GUIDE_CELL_FONT_SIZES_SP)
+            assertTrue("maxHeight=$heightPx で候補が空", sizes.isNotEmpty())
+        }
+        assertEquals(
+            "GUIDE_MIN_TEXT_HEIGHT_PX を下回る高さでも下限サイズまで落とす",
+            listOf(8f),
+            guideFittedTextFontSizes(5f, 14f, GUIDE_CELL_FONT_SIZES_SP),
+        )
+        assertEquals(listOf(8f), guideFittedTextFontSizes(0f, 14f, GUIDE_CELL_FONT_SIZES_SP))
+        assertEquals(listOf(8f), guideFittedTextFontSizes(-5f, 14f, GUIDE_CELL_FONT_SIZES_SP))
+    }
+
+    @Test
+    fun `fitted text passes the ladder through when the height cannot be judged`() {
+        assertEquals(GUIDE_CELL_FONT_SIZES_SP, guideFittedTextFontSizes(20f, 0f, GUIDE_CELL_FONT_SIZES_SP))
+        assertEquals(emptyList<Float>(), guideFittedTextFontSizes(20f, 14f, emptyList()))
+    }
+
+    @Test
+    fun `each step down the ladder is smaller than the one above`() {
+        val ladder = guideFittedTextFontSizes(10f, 14f, GUIDE_CELL_FONT_SIZES_SP)
+        assertTrue(ladder.isNotEmpty())
+        assertTrue(ladder.zipWithNext().all { (a, b) -> a > b })
+        assertTrue(ladder.all { it >= GUIDE_CELL_MIN_FONT_SIZE_SP })
+    }
+
+    @Test
+    fun `the same level one with different level two yields different colors`() {
+        for (level1 in 0x00..0x0B) {
+            val colors = (0..0x0E).map { genreColor(level1, it) }
+            assertEquals(
+                "level1=0x${level1.toString(16)} で level2 ごとに色が重複する",
+                colors.size,
+                colors.distinct().size,
+            )
+        }
+    }
+
+    @Test
+    fun `an unknown level two keeps the plain level one color`() {
+        for (level1 in 0x00..0x0B) {
+            assertEquals(genreColor(level1), genreColor(level1, GENRE_UNKNOWN_LEVEL2))
+        }
+    }
+
+    @Test
+    fun `level two only shifts the tone and never leaves the level one hue`() {
+        for (level1 in 0x00..0x0B) {
+            val base = genreColor(level1)
+            for (level2 in 0..0x0E) {
+                val tone = genreColor(level1, level2)
+                assertTrue("level2=$level2 で透明度が壊れる", tone.alpha > 0.9f)
+                assertTrue(
+                    "level1=0x${level1.toString(16)} level2=$level2 で輝度が上がる",
+                    tone.luminance() <= base.luminance() + 0.0001f,
+                )
+                assertTrue(
+                    "level1=0x${level1.toString(16)} level2=$level2 で階調が潰れる",
+                    tone.luminance() >= base.luminance() * 0.5f,
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `unknown level one falls back to a neutral color that level two never changes`() {
+        assertEquals(genreColor(0x0F), genreColor(0x1F, 0x05))
+        assertEquals(genreColor(0x0F), genreColor(0x0F, 0x00))
+    }
+
+    @Test
+    fun `the time axis is narrow enough for a bold date label`() {
+        assertEquals(40, GUIDE_AXIS_WIDTH_DP)
+        assertTrue(
+            "日付ラベル ${GUIDE_AXIS_DATE_FONT_SIZE_SP}sp が軸幅に収まらない",
+            GUIDE_AXIS_DATE_FONT_SIZE_SP < 11f,
+        )
     }
 }

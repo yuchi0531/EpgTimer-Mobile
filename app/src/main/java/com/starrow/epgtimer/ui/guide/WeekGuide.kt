@@ -57,6 +57,7 @@ private class WeekCell(
     val y0: Float,
     val y1: Float,
     val level1: Int,
+    val level2: Int,
     val event: GuideEvent,
 )
 
@@ -116,7 +117,9 @@ private fun buildWeekGrid(
                 .coerceAtMost(endCycle)
                 .coerceAtLeast(startMin + 1f)
             if (endMin <= originCycle) continue
-            val level1 = guideEvent.event.contentInfo?.nibbleList?.firstOrNull()?.nibbleLevel1 ?: 0x0F
+            val nibble = guideEvent.event.contentInfo?.nibbleList?.firstOrNull()
+            val level1 = nibble?.nibbleLevel1 ?: 0x0F
+            val level2 = nibble?.nibbleLevel2 ?: GENRE_UNKNOWN_LEVEL2
             cells.add(
                 WeekCell(
                     startMin = startMin,
@@ -124,6 +127,7 @@ private fun buildWeekGrid(
                     y0 = mapper.y(startMin),
                     y1 = mapper.y(endMin),
                     level1 = level1,
+                    level2 = level2,
                     event = guideEvent,
                 ),
             )
@@ -171,10 +175,12 @@ fun WeekGuide(
     val endCycle = WEEK_CYCLE_MINUTES
     val axisWidth = GUIDE_AXIS_WIDTH_DP.dp
     val headerHeight = WEEK_HEADER_HEIGHT_DP.dp
-    val bandPx = with(density) { GUIDE_BAND_WIDTH_DP.dp.toPx() }
     val textPad = with(density) { GUIDE_TEXT_PAD_DP.dp.toPx() }
+    val bandPx = with(density) { GUIDE_BAND_WIDTH_DP.dp.toPx() }
     val axisLabelPadPx = with(density) { 4.dp.toPx() }
     val headerTextInsetPx = with(density) { 12.dp.toPx() }
+    val cellTitleStyle = TextStyle(fontSize = 12.sp, color = colors.onSurface)
+    val cellTitleStyleDimmed = cellTitleStyle.copy(color = colors.onSurface.copy(alpha = 0.45f))
     val now = remember(data) { EpgClock.now() }
     val today = remember(data) { now.toLocalDate() }
     val nowColumn = if (now.hour < startHour) today.minusDays(1) else today
@@ -280,34 +286,23 @@ fun WeekGuide(
                         val height = (cell.y1 - cell.y0).coerceAtLeast(GUIDE_CELL_MIN_HEIGHT_PX)
                         if (!cellIntersectsViewport(top, height, headerPx, size.height)) continue
                         clipRect(left = 0f, top = headerPx, right = size.width, bottom = size.height) {
-                        val alpha = if (cell.event.dimmed) 0.45f else 1f
-                        val rectSize = Size((cellW - 2f).coerceAtLeast(1f), height)
-                        val rectTopLeft = Offset(x + 1f, top)
-                        drawRect(
-                            color = colors.surface.copy(alpha = alpha),
-                            topLeft = rectTopLeft,
-                            size = rectSize,
-                        )
-                        drawRect(
-                            color = genreColor(cell.level1).copy(alpha = alpha),
-                            topLeft = rectTopLeft,
-                            size = Size(bandPx, height),
-                        )
-                        drawRect(
-                            color = colors.outlineVariant.copy(alpha = alpha),
-                            topLeft = rectTopLeft,
-                            size = rectSize,
-                            style = Stroke(width = 1f),
+                        drawStandardCellRect(
+                            colors = colors,
+                            level1 = cell.level1,
+                            level2 = cell.level2,
+                            dimmed = cell.event.dimmed,
+                            x = x,
+                            top = top,
+                            cellW = cellW,
+                            height = height,
+                            bandPx = bandPx,
                         )
                         drawFittedCellText(
                             textMeasurer = textMeasurer,
                             title = cell.event.event.title,
-                            maxWidth = (rectSize.width - bandPx - textPad * 2).toInt(),
+                            maxWidth = (cellW - 2f - bandPx - textPad * 2).toInt(),
                             maxHeight = height - textPad,
-                            style = TextStyle(
-                                fontSize = 12.sp,
-                                color = colors.onSurface.copy(alpha = alpha),
-                            ),
+                            style = if (cell.event.dimmed) cellTitleStyleDimmed else cellTitleStyle,
                             topLeft = Offset(x + 1f + bandPx + textPad, top + textPad / 2f),
                         ) { layout, position ->
                             drawText(layout, topLeft = position)

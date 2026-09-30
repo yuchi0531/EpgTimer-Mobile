@@ -15,14 +15,26 @@ import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.sp
 import java.time.Duration
 import java.time.LocalDateTime
 
 internal const val GUIDE_MIN_TEXT_HEIGHT_PX = 14f
 internal const val GUIDE_BAND_WIDTH_DP = 4
 internal const val GUIDE_TEXT_PAD_DP = 4
-internal const val GUIDE_AXIS_WIDTH_DP = 56
+internal const val GUIDE_AXIS_WIDTH_DP = 40
+internal const val GUIDE_AXIS_DATE_FONT_SIZE_SP = 9f
 internal const val GUIDE_CELL_MIN_HEIGHT_PX = 2f
+internal const val GUIDE_MEASURE_MIN_WIDTH_PX = 24
+internal const val GUIDE_CELL_MAX_LINES = 2
+internal const val GUIDE_CELL_LIGHT_GENRE_ALPHA = 0.18f
+internal const val GUIDE_CELL_DARK_GENRE_ALPHA = 0.28f
+internal const val GUIDE_GENRE_LEVEL2_DARKEN_STEP = 0.012f
+internal const val GENRE_UNKNOWN_LEVEL2 = 0xFF
+
+internal val GUIDE_CELL_FONT_SIZES_SP: List<Float> = listOf(12f, 11f, 10f, 9f, 8f)
+
+internal val GUIDE_CELL_MIN_FONT_SIZE_SP: Float = GUIDE_CELL_FONT_SIZES_SP.last()
 
 fun visibleColumns(
     scrollX: Float,
@@ -110,6 +122,12 @@ fun gridColumnAt(xInView: Float, originPx: Float, cellWidthPx: Float, count: Int
 fun guideGroupWidths(cellWidthPx: Float, spans: IntArray): FloatArray =
     FloatArray(spans.size) { cellWidthPx * spans[it].coerceAtLeast(1) }
 
+fun effectiveSpans(spans: IntArray, cellWidthPx: Float, minMemberWidthPx: Float): IntArray =
+    IntArray(spans.size) { span ->
+        val group = span.coerceAtLeast(1)
+        if (group <= 1 || cellWidthPx / group >= minMemberWidthPx) group else 1
+    }
+
 fun guideGroupColumnStarts(axisPx: Float, widthsPx: FloatArray): FloatArray {
     val starts = FloatArray(widthsPx.size)
     var acc = axisPx
@@ -150,6 +168,63 @@ fun groupColumnAt(startsPx: FloatArray, widthsPx: FloatArray, contentX: Float): 
     return -1
 }
 
+fun cellOverlapSlot(
+    startsMinutes: FloatArray,
+    endsMinutes: FloatArray,
+    startMin: Float,
+    endMin: Float,
+    epsilonMin: Float,
+): Int {
+    var slot = 0
+    for (index in startsMinutes.indices) {
+        if (startsMinutes[index] < endMin - epsilonMin && endsMinutes[index] > startMin + epsilonMin) {
+            slot = maxOf(slot, cellOverlapSlot(startsMinutes, endsMinutes, index, epsilonMin) + 1)
+        }
+    }
+    return slot
+}
+
+private fun cellOverlapSlot(
+    startsMinutes: FloatArray,
+    endsMinutes: FloatArray,
+    index: Int,
+    epsilonMin: Float,
+): Int {
+    var slot = 0
+    for (other in 0 until index) {
+        if (startsMinutes[other] < endsMinutes[index] - epsilonMin &&
+            endsMinutes[other] > startsMinutes[index] + epsilonMin
+        ) {
+            slot = maxOf(slot, cellOverlapSlot(startsMinutes, endsMinutes, other, epsilonMin) + 1)
+        }
+    }
+    return slot
+}
+
+fun cellOverlapSlots(
+    startsMinutes: FloatArray,
+    endsMinutes: FloatArray,
+    epsilonMin: Float,
+): IntArray = IntArray(startsMinutes.size) {
+    cellOverlapSlot(startsMinutes, endsMinutes, it, epsilonMin)
+}
+
+fun guideFittedTextFontSizes(
+    maxHeightPx: Float,
+    lineHeightPx: Float,
+    fontSizesSp: List<Float>,
+): List<Float> {
+    val smallest = fontSizesSp.lastOrNull() ?: return fontSizesSp
+    val largest = fontSizesSp.first()
+    if (lineHeightPx <= 0f) return fontSizesSp
+    val fitting = if (maxHeightPx <= 0f) {
+        emptyList()
+    } else {
+        fontSizesSp.filter { it <= largest * maxHeightPx / lineHeightPx }
+    }
+    return fitting.ifEmpty { listOf(smallest) }
+}
+
 fun drawFittedCellText(
     textMeasurer: TextMeasurer,
     title: String,
@@ -159,20 +234,35 @@ fun drawFittedCellText(
     topLeft: Offset,
     draw: (TextLayoutResult, Offset) -> Unit,
 ) {
-    if (title.isBlank() || maxWidth <= 0 || maxHeight < GUIDE_MIN_TEXT_HEIGHT_PX) return
-    for (maxLines in intArrayOf(2, 1)) {
-        val layout = textMeasurer.measure(
-            text = AnnotatedString(title),
-            style = style,
-            maxLines = maxLines,
-            overflow = TextOverflow.Ellipsis,
-            constraints = Constraints(maxWidth = maxWidth),
-        )
-        if (layout.size.height <= maxHeight) {
-            draw(layout, topLeft)
-            return
+    if (title.isBlank() || maxHeight <= 0f) return
+    val measureWidth = maxOf(maxWidth, GUIDE_MEASURE_MIN_WIDTH_PX)
+    val text = AnnotatedString(title)
+    val lineHeightPx = textMeasurer.measure(
+        text = text,
+        style = style,
+        maxLines = 1,
+        constraints = Constraints(maxWidth = measureWidth),
+    ).size.height.toFloat()
+    val fontSizes = guideFittedTextFontSizes(maxHeight, lineHeightPx, GUIDE_CELL_FONT_SIZES_SP)
+    var layout: TextLayoutResult? = null
+    for (fontSizeSp in fontSizes) {
+        for (maxLines in GUIDE_CELL_MAX_LINES downTo 1) {
+            val candidate = textMeasurer.measure(
+                text = text,
+                style = style.copy(fontSize = fontSizeSp.sp),
+                maxLines = maxLines,
+                overflow = TextOverflow.Ellipsis,
+                constraints = Constraints(maxWidth = measureWidth),
+            )
+            if (candidate.size.height <= maxHeight) {
+                layout = candidate
+                break
+            }
+            if (fontSizeSp == fontSizes.last()) layout = candidate
         }
+        if (layout != null) break
     }
+    layout?.let { draw(it, topLeft) }
 }
 
 @Composable
@@ -196,6 +286,22 @@ private val GENRE_COLORS = mapOf(
     0x0A to Color(0xFFB2DFDB),
     0x0B to Color(0xFFCFD8DC),
 )
+
+fun genreTone(base: Color, steps: Int): Color {
+    val ratio = (1f - steps * GUIDE_GENRE_LEVEL2_DARKEN_STEP).coerceIn(0.5f, 1f)
+    return Color(
+        red = base.red * ratio,
+        green = base.green * ratio,
+        blue = base.blue * ratio,
+        alpha = base.alpha,
+    )
+}
+
+fun genreColor(nibbleLevel1: Int, nibbleLevel2: Int): Color {
+    val base = GENRE_COLORS[nibbleLevel1] ?: return Color(0xFFEEEEEE)
+    if (nibbleLevel2 == GENRE_UNKNOWN_LEVEL2) return base
+    return genreTone(base, (nibbleLevel2 and 0x0F) + 1)
+}
 
 fun genreColor(nibbleLevel1: Int): Color = GENRE_COLORS[nibbleLevel1] ?: Color(0xFFEEEEEE)
 
