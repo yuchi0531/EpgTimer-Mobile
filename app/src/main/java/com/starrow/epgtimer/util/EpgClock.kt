@@ -4,5 +4,7 @@ import java.time.LocalDateTime
 import java.time.ZoneOffset
 
 object EpgClock {
-    fun now(): LocalDateTime = LocalDateTime.now(ZoneOffset.ofHours(9))
+    private val JST = ZoneOffset.ofHours(9)
+
+    fun now(): LocalDateTime = LocalDateTime.now(JST)
 }

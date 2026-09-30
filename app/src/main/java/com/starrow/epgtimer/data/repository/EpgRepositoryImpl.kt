@@ -83,6 +83,8 @@ class EpgRepositoryImpl(
     private val _cacheEnabled = MutableStateFlow(prefs.getBoolean(KEY_CACHE_ENABLED, true))
     override val cacheEnabled: StateFlow<Boolean> = _cacheEnabled.asStateFlow()
 
+    private val servicesLock = Any()
+
     private var servicesCache: List<ServiceInfo>? = null
 
     private val clientLock = Any()
@@ -97,6 +99,23 @@ class EpgRepositoryImpl(
     private val logoLock = Any()
 
     private var logoCache: Map<String, ByteArray>? = null
+
+    private fun cachedServices(): List<ServiceInfo>? = synchronized(servicesLock) { servicesCache }
+
+    private fun invalidateServices() {
+        synchronized(servicesLock) { servicesCache = null }
+    }
+
+    private suspend fun services(client: EpgTimerClient): List<ServiceInfo> {
+        cachedServices()?.let { return it }
+        val fetched = client.enumService()
+        synchronized(servicesLock) {
+            val existing = servicesCache
+            if (existing != null) return existing
+            servicesCache = fetched
+        }
+        return fetched
+    }
 
     private fun loadGuides(xml: String?): List<CustomProgramGuide> {
         if (xml == null) return DefaultGuides.create()
@@ -151,7 +170,7 @@ class EpgRepositoryImpl(
             .putInt(KEY_READ_TIMEOUT_MS, config.readTimeoutMs)
             .apply()
         _serverConfig.value = config
-        servicesCache = null
+        invalidateServices()
         synchronized(clientLock) { cachedClient = null }
         clearCache()
     }
@@ -195,15 +214,13 @@ class EpgRepositoryImpl(
     override fun clearCache() {
         synchronized(guideCache) { guideCache.clear() }
         synchronized(logoLock) { logoCache = null }
-        servicesCache = null
+        invalidateServices()
     }
 
     override suspend fun testConnection(): Result<com.starrow.epgtimer.data.edcb.ServerStatus> =
         withServer { it.getStatus() }
 
-    override suspend fun getServices(): Result<List<ServiceInfo>> = withServer { client ->
-        servicesCache ?: client.enumService().also { servicesCache = it }
-    }
+    override suspend fun getServices(): Result<List<ServiceInfo>> = withServer { services(it) }
 
     override suspend fun getEvent(serviceKey: Long, eventId: Int): Result<EpgEvent> = withServer { client ->
         val pgKey = ServiceKey.event(
@@ -227,7 +244,7 @@ class EpgRepositoryImpl(
         val base = guideEngine.eventBaseTime(now, pastAvailable = true).toLocalDate()
         val window = guideWindow(weekStart, base)
         val result = withServer { client ->
-            val all = servicesCache ?: client.enumService().also { servicesCache = it }
+            val all = services(client)
             val expanded = guideEngine.expandViewServices(guide.viewServiceList, all)
             val start = window.start
             val end = window.end
@@ -326,7 +343,7 @@ class EpgRepositoryImpl(
             return Result.failure(IllegalArgumentException("検索条件を指定してください"))
         }
         return withServer { client ->
-            val all = servicesCache ?: client.enumService().also { servicesCache = it }
+            val all = services(client)
             val scoped = if (key.serviceList.isEmpty()) {
                 key.copy(serviceList = all.map { it.key })
             } else {
