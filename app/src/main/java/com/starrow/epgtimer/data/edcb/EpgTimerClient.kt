@@ -4,7 +4,6 @@ import com.starrow.epgtimer.data.model.EdcbDateTime
 import com.starrow.epgtimer.data.model.EpgAutoAddData
 import com.starrow.epgtimer.data.model.EpgEvent
 import com.starrow.epgtimer.data.model.FileData
-import com.starrow.epgtimer.data.model.PgTimeRange
 import com.starrow.epgtimer.data.model.RecFileInfo
 import com.starrow.epgtimer.data.model.ReserveData
 import com.starrow.epgtimer.data.model.SearchCondition
@@ -43,8 +42,6 @@ interface EpgTimerClient {
 
     suspend fun enumService(): List<ServiceInfo>
 
-    suspend fun enumPgAll(): List<ServiceEventInfo>
-
     suspend fun enumPgInfo(serviceKey: Long): List<EpgEvent>
 
     suspend fun enumPgInfoEx(
@@ -58,11 +55,6 @@ interface EpgTimerClient {
         start: LocalDateTime?,
         end: LocalDateTime?,
     ): List<ServiceEventInfo>
-
-    suspend fun getPgMinMax(
-        serviceKeys: List<Long>,
-        archive: Boolean,
-    ): List<PgTimeRange>
 
     suspend fun searchPg(
         keys: List<SearchCondition>,

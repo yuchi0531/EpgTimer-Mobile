@@ -8,6 +8,5 @@ data class EpgAutoAddData(
 ) {
     companion object {
         const val NEW_DATA_ID = 0
-        const val MAX_DATA_ID = 100000000
     }
 }

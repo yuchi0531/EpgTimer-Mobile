@@ -31,9 +31,6 @@ class SearchViewModel(private val repository: EpgRepository) : ViewModel() {
     var searchError by mutableStateOf<String?>(null)
         private set
 
-    var searched by mutableStateOf(false)
-        private set
-
     init {
         loadServices()
     }
@@ -82,11 +79,9 @@ class SearchViewModel(private val repository: EpgRepository) : ViewModel() {
             repository.searchEvents(condition, start, end)
                 .onSuccess {
                     results = it
-                    searched = true
                 }
                 .onFailure {
                     searchError = errorText(it)
-                    searched = true
                 }
             searching = false
         }

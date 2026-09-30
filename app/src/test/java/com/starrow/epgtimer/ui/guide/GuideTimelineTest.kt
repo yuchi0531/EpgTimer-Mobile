@@ -32,7 +32,6 @@ class GuideTimelineTest {
     @Test
     fun `timeline mapper collapses gaps and maps both directions`() {
         val mapper = TimelineMapper(
-            origin = 0f,
             end = 600f,
             segments = buildTimeline(0f, 600f, listOf(60f to 120f, 300f to 360f), collapse = true),
             pxPerMinute = 2f,
@@ -67,7 +66,7 @@ class GuideTimelineTest {
         assertEquals(150f, gridLineX(50f, 2, 100f, 100f), 0.01f)
         assertEquals(-50f, gridLineX(50f, 0, 100f, 100f), 0.01f)
 
-        val mapper = TimelineMapper(0f, 600f, listOf(TimeSegment(0f, 600f)), pxPerMinute = 2f)
+        val mapper = TimelineMapper(600f, listOf(TimeSegment(0f, 600f)), pxPerMinute = 2f)
         assertEquals(550f, rowLineY(50f, 300f, mapper, 100f), 0.01f)
         assertEquals(50f, rowLineY(50f, 0f, mapper, 0f), 0.01f)
         assertEquals(50f, cellTopY(50f, mapper, 0f, 0f), 0.01f)
@@ -88,7 +87,7 @@ class GuideTimelineTest {
         val density = 3f
         val hourHeightDp = 300
         val pxPerMinute = hourHeightDp * density / 60f
-        val mapper = TimelineMapper(0f, 10080f, listOf(TimeSegment(0f, 10080f)), pxPerMinute)
+        val mapper = TimelineMapper(10080f, listOf(TimeSegment(0f, 10080f)), pxPerMinute)
         val headerPx = 52f * density
         val viewportHeightPx = 1920f * density
 
@@ -146,8 +145,8 @@ class GuideTimelineTest {
     fun `collapsing empty hours shortens the content so no blank area is scrollable`() {
         val pxPerMinute = 2f
         val collapsed = buildTimeline(0f, 600f, listOf(60f to 120f, 300f to 360f), collapse = true)
-        val mapper = TimelineMapper(0f, 600f, collapsed, pxPerMinute)
-        val uncollapsed = TimelineMapper(0f, 600f, listOf(TimeSegment(0f, 600f)), pxPerMinute)
+        val mapper = TimelineMapper(600f, collapsed, pxPerMinute)
+        val uncollapsed = TimelineMapper(600f, listOf(TimeSegment(0f, 600f)), pxPerMinute)
 
         val (collapsedWidth, collapsedHeight) = guideContentSizes(
             axisPx = 50f,
@@ -173,7 +172,7 @@ class GuideTimelineTest {
     fun `seven days at the maximum hour height still fits the int scroll range`() {
         val density = 3f
         val pxPerMinute = guidePpxPerMinute(300 * density)
-        val mapper = TimelineMapper(0f, 10080f, listOf(TimeSegment(0f, 10080f)), pxPerMinute)
+        val mapper = TimelineMapper(10080f, listOf(TimeSegment(0f, 10080f)), pxPerMinute)
         val headerPx = 52f * density
         val (contentWidth, contentHeight) = guideContentSizes(
             axisPx = 56f * density,

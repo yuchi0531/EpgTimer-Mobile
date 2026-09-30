@@ -47,7 +47,7 @@ class StandardGuideGeometryProbeTest {
         val origin = weekStart.atStartOfDay()
         val windowEndMin = 7f * 1440f
 
-        val mapper = TimelineMapper(0f, windowEndMin, buildTimeline(0f, windowEndMin, emptyList(), false), pxPerMinute)
+        val mapper = TimelineMapper(windowEndMin, buildTimeline(0f, windowEndMin, emptyList(), false), pxPerMinute)
         val groupWidths = guideGroupWidths(cellWidth, IntArray(groups.size) { groups[it].span })
         val groupStarts = guideGroupColumnStarts(axisPx, groupWidths)
         val (contentW, contentH) = guideContentSizes(axisPx, headerPx, groups.size, windowEndMin, cellWidth, pxPerMinute)

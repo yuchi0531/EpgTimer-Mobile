@@ -115,7 +115,6 @@ private fun buildStandardGrid(
         }
     }
     val mapper = TimelineMapper(
-        origin = originMin,
         end = windowEndMin,
         segments = buildTimeline(originMin, windowEndMin, busy, collapse),
         pxPerMinute = pxPerMinute,

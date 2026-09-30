@@ -100,7 +100,6 @@ private fun buildWeekGrid(
         pending[index] = list + guideEvent
     }
     val mapper = TimelineMapper(
-        origin = originCycle,
         end = endCycle,
         segments = buildTimeline(originCycle, endCycle, busy, collapse),
         pxPerMinute = pxPerMinute,

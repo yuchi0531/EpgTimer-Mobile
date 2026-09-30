@@ -4,7 +4,6 @@ import com.starrow.epgtimer.data.guide.DefaultGuides
 import com.starrow.epgtimer.data.guide.GuideEngine
 import com.starrow.epgtimer.data.model.CustomProgramGuide
 import com.starrow.epgtimer.data.model.ContentData
-import com.starrow.epgtimer.data.model.ReserveData
 import com.starrow.epgtimer.data.model.SearchCondition
 import com.starrow.epgtimer.util.EpgClock
 import kotlinx.coroutines.runBlocking
@@ -13,7 +12,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
-import java.time.LocalDate
 
 class EpgRepositoryIntegrationTest {
 

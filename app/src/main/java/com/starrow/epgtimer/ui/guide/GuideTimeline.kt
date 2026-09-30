@@ -52,7 +52,6 @@ fun visibleColumns(
 class TimeSegment(val start: Float, val end: Float)
 
 class TimelineMapper(
-    val origin: Float,
     val end: Float,
     private val segments: List<TimeSegment>,
     private val pxPerMinute: Float,

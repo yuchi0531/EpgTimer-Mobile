@@ -3,7 +3,6 @@ package com.starrow.epgtimer.data.edcb
 import com.starrow.epgtimer.data.model.EpgAutoAddData
 import com.starrow.epgtimer.data.model.EpgEvent
 import com.starrow.epgtimer.data.model.FileData
-import com.starrow.epgtimer.data.model.PgTimeRange
 import com.starrow.epgtimer.data.model.RecFileInfo
 import com.starrow.epgtimer.data.model.ReserveData
 import com.starrow.epgtimer.data.model.SearchCondition
@@ -46,11 +45,6 @@ class EpgTimerTcpClient(
         return with(res) { vector { readServiceInfo() } }
     }
 
-    override suspend fun enumPgAll(): List<ServiceEventInfo> {
-        val res = CtrlCmdDeserializer(request(CtrlCmd.CMD_EPG_SRV_ENUM_PG_ALL))
-        return with(res) { vector { readServiceEventInfo() } }
-    }
-
     override suspend fun enumPgInfo(serviceKey: Long): List<EpgEvent> {
         val send = CtrlCmdSerializer().apply { i64(serviceKey) }
         val res = CtrlCmdDeserializer(request(CtrlCmd.CMD_EPG_SRV_GET_PG_INFO, send.toByteArray()))
@@ -86,25 +80,6 @@ class EpgTimerTcpClient(
         send.writeVectorI64(payload)
         val res = CtrlCmdDeserializer(request(cmd, send.toByteArray()))
         return with(res) { vector { readServiceEventInfo() } }
-    }
-
-    override suspend fun getPgMinMax(
-        serviceKeys: List<Long>,
-        archive: Boolean,
-    ): List<PgTimeRange> {
-        val send = CtrlCmdSerializer()
-        send.writeVectorI64(serviceKeys.flatMap { listOf(0L, it) })
-        val cmd = if (archive) {
-            CtrlCmd.CMD_EPG_SRV_GET_PG_ARC_MINMAX
-        } else {
-            CtrlCmd.CMD_EPG_SRV_GET_PG_INFO_MINMAX
-        }
-        val res = CtrlCmdDeserializer(request(cmd, send.toByteArray()))
-        val values = with(res) { readVectorI64() }
-        if (values.size % 2 != 0) {
-            throw EdcbException(ErrCode.CMD_ERR, "min/maxの応答件数が奇数です: ${values.size}")
-        }
-        return values.chunked(2).map { PgTimeRange(it[0], it[1]) }
     }
 
     override suspend fun searchPg(

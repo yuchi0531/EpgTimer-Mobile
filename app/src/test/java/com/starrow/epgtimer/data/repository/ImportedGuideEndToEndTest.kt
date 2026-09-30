@@ -1,6 +1,5 @@
 package com.starrow.epgtimer.data.repository
 
-import com.starrow.epgtimer.data.edcb.EpgTimerTcpClient
 import com.starrow.epgtimer.data.model.CustomProgramGuide
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals

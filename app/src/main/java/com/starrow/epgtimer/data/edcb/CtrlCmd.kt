@@ -4,12 +4,9 @@ object CtrlCmd {
     const val CMD_VER = 5
 
     const val CMD_EPG_SRV_DEL_RESERVE = 1014
-    const val CMD_EPG_SRV_GET_PG_ARC_MINMAX = 1020
     const val CMD_EPG_SRV_ENUM_SERVICE = 1021
     const val CMD_EPG_SRV_GET_PG_INFO = 1023
     const val CMD_EPG_SRV_SEARCH_PG = 1025
-    const val CMD_EPG_SRV_ENUM_PG_ALL = 1026
-    const val CMD_EPG_SRV_GET_PG_INFO_MINMAX = 1028
     const val CMD_EPG_SRV_ENUM_PG_INFO_EX = 1029
     const val CMD_EPG_SRV_ENUM_PG_ARC = 1030
     const val CMD_EPG_SRV_DEL_AUTO_ADD = 1033

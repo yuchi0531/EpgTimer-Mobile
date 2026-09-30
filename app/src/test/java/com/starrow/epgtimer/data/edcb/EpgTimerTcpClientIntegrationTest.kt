@@ -100,24 +100,6 @@ class EpgTimerTcpClientIntegrationTest {
     }
 
     @Test
-    fun getPgMinMaxFromServer() {
-        val services = runBlocking { client.enumService() }
-        val keys = services.take(6).map { it.key }
-        val ranges = runBlocking { client.getPgMinMax(keys, false) }
-        assertEquals(keys.size, ranges.size)
-        ranges.forEachIndexed { index, range ->
-            if (range.minFileTime != Long.MAX_VALUE) {
-                assertTrue(range.maxFileTime >= range.minFileTime)
-                val year = FileTime.fromFileTime(range.minFileTime).year
-                assertTrue("min year=$year", year in 2000..2100)
-                println("getPgMinMax[$index]: ${FileTime.fromFileTime(range.minFileTime)} - ${FileTime.fromFileTime(range.maxFileTime)}")
-            } else {
-                println("getPgMinMax[$index]: no event")
-            }
-        }
-    }
-
-    @Test
     fun searchPgWithEmptyKeywordAndRange() {
         val start = LocalDateTime.now().minusHours(6)
         val end = LocalDateTime.now().plusDays(3)
@@ -140,19 +122,5 @@ class EpgTimerTcpClientIntegrationTest {
             val current = results[index].startDateTime!!
             assertTrue("not sorted at $index", !current.isBefore(previous))
         }
-    }
-
-    @Test
-    fun getPgMinMaxForArchiveReturnsPairs() {
-        val services = runBlocking { client.enumService() }
-        val keys = services.take(2).map { it.key }
-        val ranges = runBlocking { client.getPgMinMax(keys, true) }
-        assertEquals(keys.size, ranges.size)
-        ranges.forEach { range ->
-            if (range.minFileTime != Long.MAX_VALUE) {
-                assertTrue(range.maxFileTime >= range.minFileTime)
-            }
-        }
-        println("getPgMinMax(archive): ${ranges.map { it.minFileTime to it.maxFileTime }}")
     }
 }

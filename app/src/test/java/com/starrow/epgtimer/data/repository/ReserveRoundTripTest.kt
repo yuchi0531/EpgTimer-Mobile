@@ -1,6 +1,5 @@
 package com.starrow.epgtimer.data.repository
 
-import com.starrow.epgtimer.data.model.CustomProgramGuide
 import com.starrow.epgtimer.data.model.EdcbDateTime
 import com.starrow.epgtimer.data.model.ReserveData
 import com.starrow.epgtimer.data.model.SearchCondition
@@ -9,7 +8,6 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
-import java.time.LocalDateTime
 
 class ReserveRoundTripTest {
     @Test

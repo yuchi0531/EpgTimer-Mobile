@@ -14,7 +14,6 @@ import com.starrow.epgtimer.ui.errorText
 import com.starrow.epgtimer.util.EpgClock
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import java.time.LocalDate
 
 class GuideViewModel(val repository: EpgRepository) : ViewModel() {
 
