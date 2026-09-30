@@ -5,6 +5,7 @@ import com.starrow.epgtimer.data.model.CustomProgramGuide
 import com.starrow.epgtimer.data.model.EpgAutoAddData
 import com.starrow.epgtimer.data.model.EpgEvent
 import com.starrow.epgtimer.data.model.RecFileInfo
+import com.starrow.epgtimer.data.model.RecSettingData
 import com.starrow.epgtimer.data.model.ReserveData
 import com.starrow.epgtimer.data.model.SearchCondition
 import com.starrow.epgtimer.data.model.ServiceInfo
@@ -76,7 +77,7 @@ interface EpgRepository {
 
     suspend fun getReserves(): Result<List<ReserveData>>
     suspend fun getReserve(reserveId: Int): Result<ReserveData>
-    suspend fun getDefaultRecSetting(): Result<ReserveData>
+    suspend fun getDefaultRecSetting(): Result<RecSettingData>
     suspend fun addReserve(reserve: ReserveData): Result<Unit>
     suspend fun changeReserve(reserve: ReserveData): Result<Unit>
     suspend fun deleteReserve(ids: List<Int>): Result<Unit>

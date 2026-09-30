@@ -205,6 +205,13 @@ fun RecSettingDialog(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    if (base.batFilePath.isNotBlank()) {
+                        Text(
+                            text = "録画後実行: ${base.batFilePath}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     if (error != null) {
                         Text(
                             text = error,

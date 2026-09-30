@@ -151,8 +151,8 @@ class EpgRepositoryIntegrationTest {
 
     @Test
     fun `default reserve setting is available`() = runBlocking {
-        val reserve = repository.getDefaultRecSetting().getOrThrow()
-        assertEquals(ReserveData.DEFAULT_RESERVE_ID, reserve.reserveId)
+        val setting = repository.getDefaultRecSetting().getOrThrow()
+        assertTrue("既定の録画設定が無効", !setting.isNoRec)
     }
 
     @Test

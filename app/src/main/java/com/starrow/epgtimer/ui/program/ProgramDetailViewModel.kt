@@ -86,7 +86,7 @@ class ProgramDetailViewModel(private val repository: EpgRepository) : ViewModel(
             defaultLoaded = false
             repository.getDefaultRecSetting()
                 .onSuccess {
-                    defaultRecSetting = it.recSetting
+                    defaultRecSetting = it
                     defaultError = null
                 }
                 .onFailure {

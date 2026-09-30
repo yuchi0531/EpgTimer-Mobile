@@ -85,9 +85,9 @@ fun RecordingScreen(
                 val groups = remember(recFiles) {
                     recFiles
                         .mapNotNull { file -> file.startTime.toLocalDateTime()?.let { Pair(it, file) } }
-                        .sortedBy { it.first }
+                        .sortedByDescending { it.first }
                         .groupBy { it.first.toLocalDate() }
-                        .toSortedMap()
+                        .toSortedMap(compareByDescending { it })
                 }
                 LazyColumn(Modifier.fillMaxSize()) {
                     for ((date, list) in groups) {

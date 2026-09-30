@@ -13,6 +13,7 @@ import com.starrow.epgtimer.data.model.CustomProgramGuide
 import com.starrow.epgtimer.data.model.EpgAutoAddData
 import com.starrow.epgtimer.data.model.EpgEvent
 import com.starrow.epgtimer.data.model.RecFileInfo
+import com.starrow.epgtimer.data.model.RecSettingData
 import com.starrow.epgtimer.data.model.ReserveData
 import com.starrow.epgtimer.data.model.SearchCondition
 import com.starrow.epgtimer.data.model.ServiceInfo
@@ -264,8 +265,22 @@ class EpgRepositoryImpl(
     override suspend fun getReserve(reserveId: Int): Result<ReserveData> =
         withServer { it.getReserve(reserveId) }
 
-    override suspend fun getDefaultRecSetting(): Result<ReserveData> =
-        withServer { it.getReserve(ReserveData.DEFAULT_RESERVE_ID) }
+    override suspend fun getDefaultRecSetting(): Result<RecSettingData> = withServer { client ->
+        val serverDefault = client.getReserve(ReserveData.DEFAULT_RESERVE_ID).recSetting
+        val iniDefault = fetchDefaultRecSettingFromIni(client)
+        iniDefault ?: DefaultRecSetting.withServerFallback(serverDefault)
+    }
+
+    private suspend fun fetchDefaultRecSettingFromIni(client: EpgTimerClient): RecSettingData? {
+        val files = try {
+            client.fileCopy2(listOf(TIMER_SRV_INI_NAME))
+        } catch (e: Exception) {
+            return null
+        }
+        val ini = files.firstOrNull { it.name.endsWith(TIMER_SRV_INI_NAME) } ?: return null
+        if (ini.data.isEmpty()) return null
+        return DefaultRecSetting.fromIni(DefaultRecSetting.decode(ini.data))
+    }
 
     override suspend fun addReserve(reserve: ReserveData): Result<Unit> =
         withServer { it.addReserve(listOf(reserve)) }
@@ -394,6 +409,7 @@ class EpgRepositoryImpl(
 
         private const val CH_SET5_NAME = "ChSet5.txt"
         private const val LOGO_INI_NAME = "LogoData.ini"
+        private const val TIMER_SRV_INI_NAME = "EpgTimerSrv.ini"
         private const val LOGO_FOLDER_WILDCARD = "LogoData\\*.*"
         private const val FILE_COPY_BATCH = 100
         private const val MAX_LOGO_BYTES = 32 * 1024
